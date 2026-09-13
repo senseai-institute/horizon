@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { confidenceColor } from '../lib/color'
+import { confidenceColor, KIND_LABEL } from '../lib/color'
 import type { GraphEdge, GraphNode } from '../lib/types'
 import { useHorizon } from '../store/useHorizon'
 import {
@@ -405,7 +405,9 @@ export default function MapCanvas({
                       onSelectNode(null)
                       onSelectEdge(e.id)
                     }}
-                  />
+                  >
+                    <title>{e.rationale}</title>
+                  </path>
                 </g>
               )
             })}
@@ -447,6 +449,18 @@ export default function MapCanvas({
                     stroke={color}
                     strokeWidth={n.kind === 'pillar' ? 2 : 1.4}
                     onPointerDown={(e) => onNodePointerDown(e, n.id)}
+                    tabIndex={0}
+                    role="button"
+                    aria-label={`${n.label}, ${KIND_LABEL[n.kind]}, confidence ${c.toFixed(0)}${
+                      hidden ? `, ${hidden} hidden underneath` : ''
+                    }`}
+                    onKeyDown={(e) => {
+                      if (e.key !== 'Enter' && e.key !== ' ') return
+                      e.preventDefault()
+                      onSelectEdge(null)
+                      onSelectNode(n.id)
+                      onToggleExpand(n.id)
+                    }}
                   />
                   {n.kind === 'pillar' && (
                     <text
