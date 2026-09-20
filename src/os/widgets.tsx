@@ -6,7 +6,8 @@ import { ConfidenceBar, formatUsd } from '../components/ui'
 import { confidenceColor } from '../lib/color'
 import { useGoalViews, useGraph, useHabitViews, usePortfolio } from '../store/derived'
 import { useHorizon } from '../store/useHorizon'
-import { STAGES, STAGE_LABEL, useOS } from '../store/useOS'
+import { allWorkflows, useOS } from '../store/useOS'
+import { stageMeta, workflowById } from './workflows'
 import { BLOCK_LABEL, todayKey } from './day'
 import { sampleFeed } from './feed'
 import { FLOW_HINT, FLOW_LABEL } from './bio'
@@ -95,6 +96,8 @@ function addMin(hhmm: string, m: number) {
 
 function InitiativesWidget() {
   const initiatives = useOS((s) => s.initiatives)
+  const custom = useOS((s) => s.workflows)
+  const workflows = allWorkflows(custom)
   return (
     <div className="stack stack-sm">
       <div className="row row-between">
@@ -102,14 +105,18 @@ function InitiativesWidget() {
         <Link to="/initiatives" className="link-button" style={{ fontSize: 12.5 }}>All</Link>
       </div>
       {initiatives.length === 0 && <p className="meta" style={{ margin: 0 }}>Nothing in flight. Capture an idea and start one.</p>}
-      {initiatives.slice(0, 4).map((i) => (
-        <Link key={i.id} to={`/initiatives?id=${i.id}`} className="stack stack-xs" style={{ textDecoration: 'none', color: 'inherit' }}>
-          <div className="row row-between"><span style={{ fontWeight: 500, fontSize: 14 }}>{i.title}</span><span className="meta">{STAGE_LABEL[i.stage]}</span></div>
-          <div className="stage-dots">
-            {STAGES.map((st, k) => <span key={st} className={`stage-dot${k <= STAGES.indexOf(i.stage) ? ' is-on' : ''}`} title={STAGE_LABEL[st]} />)}
-          </div>
-        </Link>
-      ))}
+      {initiatives.slice(0, 4).map((i) => {
+        const w = workflowById(workflows, i.workflowId)
+        const st = w?.stages[i.stageIndex]
+        return (
+          <Link key={i.id} to={`/initiatives?id=${i.id}`} className="stack stack-xs" style={{ textDecoration: 'none', color: 'inherit' }}>
+            <div className="row row-between"><span style={{ fontWeight: 500, fontSize: 14 }}>{i.title}</span><span className="meta">{st ? st.label ?? stageMeta(st.kind).label : ''}</span></div>
+            <div className="stage-dots">
+              {(w?.stages ?? []).map((s2, k) => <span key={s2.id} className={`stage-dot${k <= i.stageIndex ? ' is-on' : ''}`} title={s2.label ?? stageMeta(s2.kind).label} />)}
+            </div>
+          </Link>
+        )
+      })}
     </div>
   )
 }

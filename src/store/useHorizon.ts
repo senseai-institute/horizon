@@ -91,6 +91,7 @@ export interface HorizonState {
   setCandidateStatus: (candidateId: string, status: CandidateStatus) => void
 
   updateSleeve: (id: string, patch: Partial<Pick<Sleeve, 'targetPct' | 'cadence' | 'exitBelow' | 'rules' | 'note' | 'name'>>) => void
+  addSleeve: (input: Pick<Sleeve, 'name' | 'rootId' | 'targetPct' | 'exitBelow'> & Partial<Pick<Sleeve, 'rules' | 'cadence' | 'note'>>) => string
   decideReview: (id: string, status: Exclude<ReviewStatus, 'pending'>) => void
 
   setNodePosition: (id: string, pos: NodePosition) => void
@@ -535,6 +536,33 @@ export const useHorizon = create<HorizonState>()(
                 ]
               : s.journal,
           })
+        },
+
+        addSleeve: (input) => {
+          const s = get()
+          const id = uid('sl')
+          const at = nowIso()
+          const sleeve: Sleeve = {
+            id,
+            name: input.name,
+            rootId: input.rootId,
+            targetPct: input.targetPct,
+            rules: input.rules ?? { maxSinglePositionPct: 3, minMarketCapM: 1_000 },
+            cadence: input.cadence ?? 'on-confidence-change',
+            exitBelow: input.exitBelow,
+            positions: [],
+            createdAt: at,
+            note: input.note,
+          }
+          const root = s.nodes.find((n) => n.id === input.rootId)
+          set({
+            sleeves: [...s.sleeves, sleeve],
+            journal: [
+              { id: uid('jr'), at, type: 'sleeve', title: `Opened the ${input.name} sleeve`, detail: `Pointed at ${root?.label ?? input.rootId}. Target ${input.targetPct}%, exit rule below ${input.exitBelow}. No positions yet.` },
+              ...s.journal,
+            ],
+          })
+          return id
         },
 
         decideReview: (id, status) => {
