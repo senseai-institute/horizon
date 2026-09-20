@@ -21,6 +21,9 @@ import ConnectionsScreen from './screens/os/ConnectionsScreen'
 import DocsScreen from './screens/os/DocsScreen'
 import LabScreen from './screens/os/LabScreen'
 import DeskScreen from './screens/os/DeskScreen'
+import EverydayScreen from './screens/os/EverydayScreen'
+import MorningScreen from './screens/os/MorningScreen'
+import TrackersScreen from './screens/os/TrackersScreen'
 import FlowScreen from './screens/os/FlowScreen'
 import InitiativesScreen from './screens/os/InitiativesScreen'
 import JourneyScreen from './screens/os/JourneyScreen'
@@ -28,6 +31,8 @@ import StreamScreen from './screens/os/StreamScreen'
 import SystemScreen from './screens/os/SystemScreen'
 import { usePendingCount } from './store/derived'
 import { useHorizon } from './store/useHorizon'
+import { useOS } from './store/useOS'
+import { todayKey } from './os/day'
 
 function BeliefsSection() {
   return (
@@ -68,15 +73,21 @@ function Moved({ to }: { to: string }) {
 
 export default function App() {
   const onboarded = useHorizon((s) => s.onboarded)
+  const morningDoneDay = useOS((s) => s.morningDoneDay)
+  /* The front door: the Morning until you have started the day, then the Desk. */
+  const home = !onboarded ? '/onboarding' : morningDoneDay === todayKey() ? '/desk' : '/morning'
   return (
     <HashRouter>
       <ToastProvider>
         <Routes>
           <Route element={<OSShell />}>
-            <Route path="/" element={<Navigate to={onboarded ? '/desk' : '/onboarding'} replace />} />
+            <Route path="/" element={<Navigate to={home} replace />} />
             <Route path="/onboarding" element={<OnboardingScreen />} />
 
+            <Route path="/morning" element={<MorningScreen />} />
             <Route path="/desk" element={<DeskScreen />} />
+            <Route path="/trackers" element={<TrackersScreen />} />
+            <Route path="/everyday" element={<EverydayScreen />} />
             <Route path="/initiatives" element={<InitiativesScreen />} />
             <Route path="/journey" element={<JourneyScreen />} />
             <Route path="/lab" element={<LabScreen />} />

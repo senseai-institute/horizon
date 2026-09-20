@@ -13,7 +13,8 @@ import { IconDoc, IconGoal, IconMap, IconQueue, IconSleeves, IconToday, IconValu
 import { ConfirmButton } from './ui'
 
 const WORK = [
-  { to: '/desk', label: 'Desk', icon: <IconToday /> },
+  { to: '/morning', label: 'Morning', icon: <IconToday /> },
+  { to: '/desk', label: 'Desk', icon: <IconQueue /> },
   { to: '/initiatives', label: 'Initiatives', icon: <IconGoal /> },
   { to: '/journey', label: 'Journey', icon: <IconQueue /> },
   { to: '/lab', label: 'Lab', icon: <IconValues /> },
@@ -24,6 +25,7 @@ const WORK = [
 ]
 const LIFE = [
   { to: '/life', label: 'Overview', icon: <IconToday /> },
+  { to: '/trackers', label: 'Trackers', icon: <IconDoc /> },
   { to: '/goals', label: 'Goals', icon: <IconGoal /> },
   { to: '/beliefs', label: 'Beliefs', icon: <IconMap /> },
   { to: '/values', label: 'Values', icon: <IconValues /> },
@@ -52,6 +54,7 @@ export default function OSShell() {
   const resetOS = useOS((s) => s.resetOS)
   const resetNotebook = useHorizon((s) => s.resetNotebook)
   const goals = useHorizon((s) => s.goals)
+  const noCounts = useOS((s) => s.attention.noCounts)
   const score = inboxScore(inbox)
   const last = bio[bio.length - 1]
 
@@ -119,10 +122,14 @@ export default function OSShell() {
           <NavLink key={n.to} to={n.to} className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}>
             <span className="nav-item-icon">{n.icon}</span>
             <span>{n.label}</span>
-            {n.counter && pending > 0 && <span className="nav-count">{pending}</span>}
+            {n.counter && pending > 0 && !noCounts && <span className="nav-count">{pending}</span>}
           </NavLink>
         ))}
         <div className="nav-group-label label">System</div>
+        <NavLink to="/everyday" className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}>
+          <span className="nav-item-icon"><IconGoal /></span>
+          <span>Everyday</span>
+        </NavLink>
         <NavLink to="/connections" className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}>
           <span className="nav-item-icon"><IconMap /></span>
           <span>Connections</span>

@@ -14,9 +14,14 @@ import { BUILTIN_WORKFLOWS, stageMeta, workflowById, type StageKind, type Workfl
 import { seedConnections } from '../os/connections'
 import { nextEpoch, seedDatasets, seedDocs, seedExperiments } from '../os/lab'
 import { translate } from '../os/translate'
+import { defaultAttention, markKey, seedEveryday, seedTrackers } from '../os/everyday'
 import type {
   Agent,
+  AttentionSettings,
   BioSample,
+  EverydayItem,
+  Todo,
+  Tracker,
   Blueprint,
   ChatMsg,
   Connection,
@@ -219,6 +224,14 @@ export interface OSState {
   routines: (RoutineBlock & { id: string; initiativeId: string })[]
   /** When the person last looked. Everything after it is "since you were away". */
   lastSeenAt: string
+  todos: Todo[]
+  trackers: Tracker[]
+  everyday: EverydayItem[]
+  attention: AttentionSettings
+  /** Day keys. The Morning was finished today; the digest was read today; the Desk was opened after closing time today. */
+  morningDoneDay: string
+  feedDoneDay: string
+  deskOpenedLateDay: string
 
   // chats
   openChat: (agentId: string, threadId?: string) => string
@@ -283,6 +296,21 @@ export interface OSState {
   deleteDoc: (id: string) => void
   saveSheet: (sheet: Partial<Sheet> & { title: string; columns: string[]; numeric: boolean[]; rows: (string | number)[][]; initiativeId?: string }) => string
   markSeen: () => void
+
+  // everyday
+  addTodo: (text: string, extra?: Partial<Pick<Todo, 'due' | 'initiativeId'>>) => string
+  toggleTodo: (id: string) => void
+  removeTodo: (id: string) => void
+  addTracker: (t: Omit<Tracker, 'id' | 'marks' | 'createdAt'>) => string
+  updateTracker: (id: string, patch: Partial<Omit<Tracker, 'id' | 'marks'>>) => void
+  toggleMark: (trackerId: string, day: string, row: string, slot: string) => void
+  setEverydayStatus: (id: string, status: EverydayItem['status']) => void
+  addEveryday: (item: Omit<EverydayItem, 'id' | 'custom'>) => string
+  removeEveryday: (id: string) => void
+  setAttention: (patch: Partial<AttentionSettings>) => void
+  finishMorning: () => void
+  finishFeed: () => void
+  openDeskLate: () => void
 
   // desk
   setWidgets: (ids: WidgetId[]) => void
@@ -407,7 +435,7 @@ function seedState() {
     workflows: [] as Workflow[],
     blocks: [] as TimeBlock[],
     nudges: [] as Nudge[],
-    widgets: ['inbox', 'away', 'piece', 'day', 'lab', 'initiatives', 'feed', 'flow'] as WidgetId[],
+    widgets: ['inbox', 'away', 'todos', 'trackers', 'piece', 'day', 'lab', 'initiatives', 'feed', 'flow'] as WidgetId[],
     senses: { sound: false, breathTone: false, haptics: true } as SenseSettings,
     deskSinceMs: Date.now(),
     paletteOpen: false,
@@ -438,6 +466,18 @@ function seedState() {
     ] as Sheet[],
     routines: translate('in-hawk', 'Hawk vision', 'model', 'local').routine.map((r, i) => ({ ...r, id: `rt-hawk-${i}`, initiativeId: 'in-hawk' })),
     lastSeenAt: ago(14),
+    todos: [
+      { id: 'td-1', text: 'Answer the landlord before the thirtieth', done: false, createdAt: ago(30), due: todayKey() },
+      { id: 'td-2', text: 'Book the vet for the 30th (end of the course)', done: false, createdAt: ago(28) },
+      { id: 'td-3', text: 'Read the raptor retina paper, section 3', done: false, createdAt: ago(20), initiativeId: 'in-hawk' },
+      { id: 'td-4', text: 'Return the library books', done: true, createdAt: ago(50), doneAt: ago(26) },
+    ] as Todo[],
+    trackers: seedTrackers(),
+    everyday: seedEveryday.map((e) => ({ ...e })),
+    attention: { ...defaultAttention },
+    morningDoneDay: '',
+    feedDoneDay: '',
+    deskOpenedLateDay: '',
   }
 }
 
@@ -1130,6 +1170,42 @@ export const useOS = create<OSState>()(
         return id
       },
       markSeen: () => set({ lastSeenAt: nowIso() }),
+
+      addTodo: (text, extra) => {
+        const id = uid('td')
+        set((s) => ({ todos: [{ id, text: text.trim(), done: false, createdAt: nowIso(), ...extra }, ...s.todos] }))
+        return id
+      },
+      toggleTodo: (id) => set((s) => ({ todos: s.todos.map((t) => (t.id === id ? { ...t, done: !t.done, doneAt: t.done ? undefined : nowIso() } : t)) })),
+      removeTodo: (id) => set((s) => ({ todos: s.todos.filter((t) => t.id !== id) })),
+      addTracker: (t) => {
+        const id = uid('tr')
+        set((s) => ({ trackers: [...s.trackers, { ...t, id, marks: {}, createdAt: nowIso() }] }))
+        return id
+      },
+      updateTracker: (id, patch) => set((s) => ({ trackers: s.trackers.map((t) => (t.id === id ? { ...t, ...patch } : t)) })),
+      toggleMark: (trackerId, day, row, slot) =>
+        set((s) => ({
+          trackers: s.trackers.map((t) => {
+            if (t.id !== trackerId) return t
+            const dayMarks = { ...(t.marks[day] ?? {}) }
+            const k = markKey(row, slot)
+            if (dayMarks[k]) delete dayMarks[k]
+            else dayMarks[k] = nowIso()
+            return { ...t, marks: { ...t.marks, [day]: dayMarks } }
+          }),
+        })),
+      setEverydayStatus: (id, status) => set((s) => ({ everyday: s.everyday.map((e) => (e.id === id ? { ...e, status } : e)) })),
+      addEveryday: (item) => {
+        const id = uid('ev')
+        set((s) => ({ everyday: [...s.everyday, { ...item, id, custom: true }] }))
+        return id
+      },
+      removeEveryday: (id) => set((s) => ({ everyday: s.everyday.filter((e) => e.id !== id || !e.custom) })),
+      setAttention: (patch) => set((s) => ({ attention: { ...s.attention, ...patch } })),
+      finishMorning: () => set({ morningDoneDay: todayKey(), lastSeenAt: nowIso(), deskSinceMs: Date.now() }),
+      finishFeed: () => set({ feedDoneDay: todayKey() }),
+      openDeskLate: () => set({ deskOpenedLateDay: todayKey() }),
 
       setWidgets: (ids) => set({ widgets: ids }),
       setSenses: (patch) => set((s) => ({ senses: { ...s.senses, ...patch } })),

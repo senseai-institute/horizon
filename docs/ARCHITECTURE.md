@@ -164,6 +164,34 @@ that says "implement the fovea head" opens a branch, the CI run reports into
 the inbox, the review is a run you approve. Docs, sheets, code and money in
 one place, on one store.
 
+## One application, and why that is dangerous
+
+If this is the only thing you open, it has every opportunity to become the
+thing you cannot close. The design takes the opposite side of every trick a
+product uses to be opened more: the front door (the Morning) ends; the news is
+a digest with a fixed size and a last line; counts are not shown, only a score
+that falls when work is done; the Desk closes itself in the evening and asks
+you to mean it if you open it late. These are settings, not sermons — they
+live under System → Attention and default on.
+
+## Everyday, and the connections principle
+
+The list of workflows a life is made of, kept in the product and marked
+built, next, or later. It is the roadmap. Two kinds of row: the ones that are
+about the right experience (the cat's medicine on a piece of paper, a to-do,
+a birthday) and the ones that are real work (a computer-vision product, code
+and CI, messages). Both go through the same rule: a source is a connection
+with an export, never a home. Groceries are a list here and an order through
+an API; messages are threads here and a bridge to the platform; feeds are RSS
+and nothing that needs an app. When a service has no API, the row waits.
+
+## Trackers as a primitive
+
+A tracker is rows × slots × days with a cadence. It is the same shape as a
+medication chart, a watering rota, a habit, a birthday list with a month for
+a cadence, or a bills list with a day of the month. One primitive, one
+screen, one widget; the everyday list reuses it for four rows already.
+
 ## After hours
 
 The business runs while you are at work. Agents finish runs, the lab trains,

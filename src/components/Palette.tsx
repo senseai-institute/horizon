@@ -13,7 +13,10 @@ interface Hit {
 }
 
 const APPS: { label: string; to: string; hint: string }[] = [
+  { label: 'Morning', to: '/morning', hint: 'wake up, check Horizon, start the day' },
   { label: 'Desk', to: '/desk', hint: 'inbox, approvals, the nearest piece' },
+  { label: 'Trackers', to: '/trackers', hint: 'the paper on the fridge' },
+  { label: 'Everyday', to: '/everyday', hint: 'every workflow, and whether it has a home' },
   { label: 'Journey', to: '/journey', hint: 'the map of pieces' },
   { label: 'Initiatives', to: '/initiatives', hint: 'idea → outcome' },
   { label: 'Stream', to: '/stream', hint: 'type, speak, draw' },
@@ -82,6 +85,7 @@ export default function Palette() {
       { id: 'act-goal', group: 'Actions', label: 'New goal', run: () => go('/goals') },
       { id: 'act-belief', group: 'Actions', label: 'New belief', run: () => go('/beliefs/new') },
       { id: 'act-initiative', group: 'Actions', label: 'New initiative', hint: 'an idea, all the way to an outcome', run: () => go('/initiatives?new=1') },
+      { id: 'act-tracker', group: 'Actions', label: 'New tracker', hint: 'names, days, boxes', run: () => go('/trackers?new=1') },
       { id: 'act-walk', group: 'Actions', label: 'Log a walk', hint: 'resets the desk timer', run: () => { setPalette(false); os.logWalk() } },
       { id: 'act-export', group: 'Actions', label: 'Export everything', run: () => go('/system') },
       ...agents.filter((a) => a.enabled).map((a) => ({ id: `ag-${a.id}`, group: 'Agents' as const, label: `Chat with ${a.name}`, hint: a.role, run: () => { setPalette(false); os.openChat(a.id) } })),
@@ -93,6 +97,11 @@ export default function Palette() {
       ...downloads.slice(0, 30).map((d) => ({ id: `dl-${d.id}`, group: 'Downloads' as const, label: d.kind === 'drawing' ? 'A drawing' : d.content.slice(0, 70), hint: d.kind, run: () => go('/stream') })),
     ]
     if (!t) return all.filter((h) => h.group === 'Apps' || h.group === 'Actions').slice(0, 14)
+    const todoPrefix = /^(todo|to-do|to do)[:\s]+/i
+    if (todoPrefix.test(q.trim())) {
+      const text = q.trim().replace(todoPrefix, '')
+      return [{ id: 'todo', group: 'Actions', label: `Add to-do: "${text}"`, hint: 'return to add', run: () => { setPalette(false); if (text.trim()) os.addTodo(text.trim()) } }]
+    }
     const scored = all
       .map((h) => {
         const l = h.label.toLowerCase()
@@ -107,6 +116,7 @@ export default function Palette() {
     if (sentence || scored.length === 0)
       scored.push(
         { id: 'ask', group: 'Actions', label: `Ask Horizon: "${q.trim()}"`, hint: 'opens a chat and sends it', run: () => { setPalette(false); const id = os.openChat('ag-horizon'); void os.send(id, q.trim()) } },
+        { id: 'todo', group: 'Actions', label: `Add to-do: "${q.trim().slice(0, 40)}${q.trim().length > 40 ? '…' : ''}"`, run: () => { setPalette(false); os.addTodo(q.trim()) } },
         { id: 'keep', group: 'Actions', label: `Keep in the stream: "${q.trim().slice(0, 40)}${q.trim().length > 40 ? '…' : ''}"`, run: () => { setPalette(false); os.addDownload({ kind: 'text', content: q.trim() }) } },
       )
     return scored
@@ -127,7 +137,7 @@ export default function Palette() {
             ref={inputRef}
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="Type an app, a goal, a piece, an agent — or just say what you want"
+            placeholder="Type an app, a goal, a piece, an agent — or “todo …”, or just say what you want"
             onKeyDown={(e) => {
               if (e.key === 'ArrowDown') { e.preventDefault(); setIdx((i) => Math.min(hits.length - 1, i + 1)) }
               if (e.key === 'ArrowUp') { e.preventDefault(); setIdx((i) => Math.max(0, i - 1)) }

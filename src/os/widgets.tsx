@@ -1,4 +1,4 @@
-import type { ComponentType } from 'react'
+import { useState, type ComponentType } from 'react'
 import { Link } from 'react-router-dom'
 import GoalCard from '../components/GoalCard'
 import HabitCard from '../components/HabitCard'
@@ -9,6 +9,7 @@ import { useHorizon } from '../store/useHorizon'
 import { allWorkflows, useOS } from '../store/useOS'
 import { stageMeta, workflowById } from './workflows'
 import { BLOCK_LABEL, todayKey } from './day'
+import { markKey, trackerDayProgress, trackerDue } from './everyday'
 import { sampleFeed } from './feed'
 import { FLOW_HINT, FLOW_LABEL } from './bio'
 import { journeyProgress } from './planner'
@@ -121,22 +122,113 @@ function InitiativesWidget() {
   )
 }
 
-function FeedWidget() {
+/**
+ * The digest. A fixed number of items a day, and an end. There is no feed to
+ * scroll: when you have read it, you say so and it rests until tomorrow.
+ */
+export function DigestWidget() {
   const runtimeUrl = useOS((s) => s.runtimeUrl)
   const useRuntime = useOS((s) => s.useRuntime)
+  const attention = useOS((s) => s.attention)
+  const feedDoneDay = useOS((s) => s.feedDoneDay)
+  const finishFeed = useOS((s) => s.finishFeed)
+  const done = feedDoneDay === todayKey()
+  const items = sampleFeed.slice(0, attention.digestPerDay)
   return (
     <div className="stack stack-sm">
       <div className="row row-between">
-        <span className="label">Feed</span>
-        <span className="meta">{useRuntime ? `via ${runtimeUrl.replace(/^https?:\/\//, '')}` : 'sample · connect a runtime for live RSS'}</span>
+        <span className="label">Digest</span>
+        <span className="meta">{attention.digestPerDay} a day · {useRuntime ? `via ${runtimeUrl.replace(/^https?:\/\//, '')}` : 'sample'}</span>
       </div>
-      {sampleFeed.slice(0, 4).map((f) => (
-        <div key={f.id} className="stack" style={{ gap: 2 }}>
-          <span style={{ fontSize: 14, lineHeight: 1.4 }}>{f.title}</span>
-          <span className="meta">{f.source} · {f.summary}</span>
-        </div>
-      ))}
-      <p className="meta" style={{ margin: 0 }}>A widget is one file in <code className="mono">src/os/widgets.tsx</code>. This one reads RSS through the runtime's <code className="mono">/feed</code>.</p>
+      {done ? (
+        <p className="meta" style={{ margin: 0 }}>That was today's. It comes back tomorrow morning. Nothing you missed is waiting.</p>
+      ) : (
+        <>
+          {items.map((f) => (
+            <div key={f.id} className="stack" style={{ gap: 2 }}>
+              <span style={{ fontSize: 14, lineHeight: 1.4 }}>{f.title}</span>
+              <span className="meta">{f.source} · {f.summary}</span>
+            </div>
+          ))}
+          <div className="row row-between row-wrap" style={{ gap: 8 }}>
+            <span className="meta">That is all of it. No more below.</span>
+            <button type="button" className="btn btn-sm" onClick={finishFeed}>Read, done for today</button>
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
+/** To-dos. Type it, tick it. Lighter than a journey piece; nothing else is required. */
+export function TodosWidget() {
+  const todos = useOS((s) => s.todos)
+  const { addTodo, toggleTodo, removeTodo } = useOS.getState()
+  const [text, setText] = useState('')
+  const today = todayKey()
+  const open = todos.filter((t) => !t.done)
+  const doneToday = todos.filter((t) => t.done && (t.doneAt ?? '').slice(0, 10) === today)
+  return (
+    <div className="stack stack-sm">
+      <div className="row row-between">
+        <span className="label">To-dos</span>
+        <span className="meta">{doneToday.length > 0 ? `${doneToday.length} done today` : open.length === 0 ? 'nothing open' : ''}</span>
+      </div>
+      <form
+        className="row"
+        style={{ gap: 8 }}
+        onSubmit={(e) => {
+          e.preventDefault()
+          if (text.trim()) { addTodo(text.trim()); setText('') }
+        }}
+      >
+        <input className="input" style={{ flex: 1, fontSize: 14 }} value={text} onChange={(e) => setText(e.target.value)} placeholder="Add a to-do and press return" aria-label="New to-do" />
+      </form>
+      <ul className="todo-list">
+        {open.map((t) => (
+          <li key={t.id} className={`todo${t.due && t.due < today ? ' is-overdue' : ''}`}>
+            <button type="button" className="day-check" aria-label="Mark done" onClick={() => toggleTodo(t.id)} />
+            <span style={{ flex: 1 }}>{t.text}</span>
+            {t.due === today && <span className="meta">today</span>}
+            {t.due && t.due < today && <span className="meta">was due</span>}
+            <button type="button" className="btn btn-sm btn-ghost" aria-label="Remove" onClick={() => removeTodo(t.id)}>×</button>
+          </li>
+        ))}
+        {doneToday.map((t) => (
+          <li key={t.id} className="todo is-done">
+            <button type="button" className="day-check" aria-label="Mark not done" onClick={() => toggleTodo(t.id)}>✓</button>
+            <span style={{ flex: 1 }}>{t.text}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
+/** Today's boxes from every tracker that is due, to tick from the Desk. */
+function TrackersWidget() {
+  const trackers = useOS((s) => s.trackers)
+  const toggleMark = useOS((s) => s.toggleMark)
+  const today = todayKey()
+  const due = trackers.filter((t) => !t.archived && trackerDue(t, today))
+  return (
+    <div className="stack stack-sm">
+      <div className="row row-between"><span className="label">On the fridge</span><Link to="/trackers" className="link-button" style={{ fontSize: 12.5 }}>Trackers</Link></div>
+      {due.length === 0 && <p className="meta" style={{ margin: 0 }}>Nothing due today.</p>}
+      {due.map((t) => {
+        const p = trackerDayProgress(t, today)
+        return (
+          <div key={t.id} className="stack stack-xs">
+            <div className="row row-between"><span style={{ fontSize: 14, fontWeight: 500 }}>{t.title}</span><span className="meta num">{p.done}/{p.total}</span></div>
+            <div className="row row-wrap" style={{ gap: 6 }}>
+              {t.rows.map((r) => t.slots.map((s) => {
+                const on = Boolean(t.marks[today]?.[markKey(r, s)])
+                return <button key={r + s} type="button" className={`box-chip${on ? ' is-on' : ''}`} aria-pressed={on} onClick={() => toggleMark(t.id, today, r, s)}><span className="box">{on ? '✓' : ''}</span>{r}{s ? ` · ${s}` : ''}</button>
+              }))}
+            </div>
+          </div>
+        )
+      })}
     </div>
   )
 }
@@ -200,7 +292,7 @@ function MoneyWidget() {
   )
 }
 
-function AwayWidget() {
+export function AwayWidget() {
   const lastSeenAt = useOS((s) => s.lastSeenAt)
   const runs = useOS((s) => s.runs)
   const inbox = useOS((s) => s.inbox)
@@ -250,7 +342,9 @@ export const WIDGETS: WidgetDef[] = [
   { id: 'piece', label: 'Nearest piece', blurb: 'The one thing to do next.', span: 1, Component: PieceWidget },
   { id: 'day', label: 'Today', blurb: 'Time blocks from the journey and the body.', span: 1, Component: DayWidget },
   { id: 'initiatives', label: 'Initiatives', blurb: 'Ideas on their way to outcomes.', span: 1, Component: InitiativesWidget },
-  { id: 'feed', label: 'Feed', blurb: 'RSS through the runtime. The example of plugging something in.', span: 1, Component: FeedWidget },
+  { id: 'todos', label: 'To-dos', blurb: 'Type it, tick it.', span: 1, Component: TodosWidget },
+  { id: 'trackers', label: 'On the fridge', blurb: 'Today’s boxes from every tracker.', span: 1, Component: TrackersWidget },
+  { id: 'feed', label: 'Digest', blurb: 'A fixed number of items a day, with an end.', span: 1, Component: DigestWidget },
   { id: 'flow', label: 'Body', blurb: 'Flow state and heart rate.', span: 1, Component: FlowWidget },
   { id: 'habits', label: 'Habits', blurb: 'This month’s spending you are changing.', span: 1, Component: HabitsWidget },
   { id: 'journey', label: 'Journey', blurb: 'Distance travelled.', span: 1, Component: JourneyWidget },

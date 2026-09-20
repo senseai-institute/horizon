@@ -7,6 +7,7 @@ import type { InboxItem, WidgetId } from '../../os/types'
 import { WIDGETS } from '../../os/widgets'
 import { useGoalViews } from '../../store/derived'
 import { useOS } from '../../store/useOS'
+import { todayKey } from '../../os/day'
 
 /**
  * The main work surface. Left: everything that came in, with a score you work
@@ -19,6 +20,8 @@ export default function DeskScreen() {
   const agents = useOS((s) => s.agents)
   const runs = useOS((s) => s.runs)
   const widgets = useOS((s) => s.widgets)
+  const attention = useOS((s) => s.attention)
+  const deskOpenedLateDay = useOS((s) => s.deskOpenedLateDay)
   const { markRead, markDone, reply, openChat, setWidgets } = useOS.getState()
   const goals = useGoalViews()
   const [selected, setSelected] = useState<string | null>(null)
@@ -48,6 +51,29 @@ export default function DeskScreen() {
   }
   void pieces
 
+  const now = new Date()
+  const hhmm = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
+  const closed = Boolean(attention.closeAt) && hhmm >= attention.closeAt && deskOpenedLateDay !== todayKey()
+  if (closed) {
+    return (
+      <div className="page" style={{ maxWidth: 560 }}>
+        <div className="closed stack stack-md">
+          <span className="label">The Desk is closed</span>
+          <h1 style={{ fontSize: 30 }}>It is after {attention.closeAt}.</h1>
+          <p className="prose" style={{ margin: 0 }}>
+            The agents keep working. Whatever arrives is scored and kept, and the Morning will tell you about it. Nothing
+            here needs you tonight.
+          </p>
+          <div className="row row-wrap" style={{ gap: 8 }}>
+            <Link to="/flow" className="btn btn-primary">Breathe, or read</Link>
+            <button type="button" className="btn btn-ghost" onClick={() => useOS.getState().openDeskLate()}>Open it anyway, tonight</button>
+          </div>
+          <p className="meta" style={{ margin: 0 }}>Closing time is under System, Attention.</p>
+        </div>
+      </div>
+    )
+  }
+
   const select = (i: InboxItem) => {
     setSelected(i.id)
     setReplyText('')
@@ -72,7 +98,7 @@ export default function DeskScreen() {
           <div className="row row-between">
             <div className="segmented">
               <button type="button" aria-pressed={filter === 'open'} onClick={() => setFilter('open')}>
-                Open {inbox.filter((i) => !i.done).length}
+                Open{attention.noCounts ? '' : ` ${inbox.filter((i) => !i.done).length}`}
               </button>
               <button type="button" aria-pressed={filter === 'all'} onClick={() => setFilter('all')}>
                 Everything
