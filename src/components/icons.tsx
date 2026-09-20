@@ -107,3 +107,8 @@ export const IconValues = () => (
     <path d="M8 13.2S2.8 9.9 2.8 6.2a2.6 2.6 0 0 1 5.2-.6 2.6 2.6 0 0 1 5.2.6c0 3.7-5.2 7-5.2 7Z" />
   </S>
 )
+export const IconMinus = () => (
+  <S>
+    <path d="M3.4 8h9.2" />
+  </S>
+)

@@ -137,7 +137,7 @@ export default function OnboardingScreen() {
               style={{ fontSize: 13 }}
               onClick={() => {
                 completeOnboarding()
-                navigate('/today')
+                navigate('/desk')
               }}
             >
               Skip — show me the example
@@ -229,14 +229,14 @@ export default function OnboardingScreen() {
           <div>
             <h1>That is the board.</h1>
             <p className="lede" style={{ marginTop: 10 }}>
-              Your goal is up, next to an example notebook so you can see how the rest fits together: beliefs about
-              the world that decide where the long-term money goes, values that decide what you will not own, and a
-              queue that asks before anything moves.
+              Your goal is up, next to an example so you can see how the rest fits together: a Desk where the work
+              arrives, a journey of pieces between you and the goal, agents that prepare things and wait for you, and
+              beliefs and values that decide where the long-term money goes.
             </p>
           </div>
           <div className="row row-wrap" style={{ gap: 8 }}>
-            <button type="button" className="btn btn-primary" onClick={() => navigate('/today')}>
-              Open Today
+            <button type="button" className="btn btn-primary" onClick={() => navigate('/desk')}>
+              Open the Desk
             </button>
             <button type="button" className="btn" onClick={() => navigate(goalId ? `/goals/${goalId}` : '/goals')}>
               See the goal

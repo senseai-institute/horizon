@@ -1,5 +1,5 @@
 import { HashRouter, Navigate, Outlet, Route, Routes, useParams } from 'react-router-dom'
-import Layout from './components/Layout'
+import OSShell from './components/OSShell'
 import SubNav from './components/SubNav'
 import { ToastProvider } from './components/Toast'
 import DiscoveryScreen from './screens/DiscoveryScreen'
@@ -16,6 +16,12 @@ import ThesisDetailScreen from './screens/ThesisDetailScreen'
 import ThesisMapScreen from './screens/ThesisMapScreen'
 import TodayScreen from './screens/TodayScreen'
 import ValuesScreen from './screens/ValuesScreen'
+import AgentsScreen from './screens/os/AgentsScreen'
+import DeskScreen from './screens/os/DeskScreen'
+import FlowScreen from './screens/os/FlowScreen'
+import JourneyScreen from './screens/os/JourneyScreen'
+import StreamScreen from './screens/os/StreamScreen'
+import SystemScreen from './screens/os/SystemScreen'
 import { usePendingCount } from './store/derived'
 import { useHorizon } from './store/useHorizon'
 
@@ -51,7 +57,6 @@ function MoneySection() {
   )
 }
 
-/** Old links keep working. */
 function Moved({ to }: { to: string }) {
   const params = useParams()
   return <Navigate to={to.replace(':id', params.id ?? '')} replace />
@@ -63,10 +68,19 @@ export default function App() {
     <HashRouter>
       <ToastProvider>
         <Routes>
-          <Route element={<Layout />}>
-            <Route path="/" element={<Navigate to={onboarded ? '/today' : '/onboarding'} replace />} />
+          <Route element={<OSShell />}>
+            <Route path="/" element={<Navigate to={onboarded ? '/desk' : '/onboarding'} replace />} />
             <Route path="/onboarding" element={<OnboardingScreen />} />
-            <Route path="/today" element={<TodayScreen />} />
+
+            <Route path="/desk" element={<DeskScreen />} />
+            <Route path="/journey" element={<JourneyScreen />} />
+            <Route path="/stream" element={<StreamScreen />} />
+            <Route path="/flow" element={<FlowScreen />} />
+            <Route path="/agents" element={<AgentsScreen />} />
+            <Route path="/system" element={<SystemScreen />} />
+
+            <Route path="/life" element={<TodayScreen />} />
+            <Route path="/today" element={<Moved to="/life" />} />
             <Route path="/goals" element={<GoalsScreen />} />
             <Route path="/goals/:id" element={<GoalDetailScreen />} />
             <Route path="/values" element={<ValuesScreen />} />
@@ -94,7 +108,7 @@ export default function App() {
             <Route path="/sleeves" element={<Moved to="/money" />} />
             <Route path="/review" element={<Moved to="/money/review" />} />
             <Route path="/journal" element={<Moved to="/money/journal" />} />
-            <Route path="*" element={<Navigate to="/today" replace />} />
+            <Route path="*" element={<Navigate to="/desk" replace />} />
           </Route>
         </Routes>
       </ToastProvider>
