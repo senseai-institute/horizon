@@ -17,6 +17,9 @@ import ThesisMapScreen from './screens/ThesisMapScreen'
 import TodayScreen from './screens/TodayScreen'
 import ValuesScreen from './screens/ValuesScreen'
 import AgentsScreen from './screens/os/AgentsScreen'
+import ConnectionsScreen from './screens/os/ConnectionsScreen'
+import DocsScreen from './screens/os/DocsScreen'
+import LabScreen from './screens/os/LabScreen'
 import DeskScreen from './screens/os/DeskScreen'
 import FlowScreen from './screens/os/FlowScreen'
 import InitiativesScreen from './screens/os/InitiativesScreen'
@@ -76,6 +79,9 @@ export default function App() {
             <Route path="/desk" element={<DeskScreen />} />
             <Route path="/initiatives" element={<InitiativesScreen />} />
             <Route path="/journey" element={<JourneyScreen />} />
+            <Route path="/lab" element={<LabScreen />} />
+            <Route path="/docs" element={<DocsScreen />} />
+            <Route path="/connections" element={<ConnectionsScreen />} />
             <Route path="/stream" element={<StreamScreen />} />
             <Route path="/flow" element={<FlowScreen />} />
             <Route path="/agents" element={<AgentsScreen />} />

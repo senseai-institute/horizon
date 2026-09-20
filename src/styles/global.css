@@ -1876,7 +1876,7 @@ input[type='range']::-moz-range-thumb {
   .desk,
   .desk.is-map,
   .desk.is-even {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 @media (max-width: 940px) {
@@ -2426,4 +2426,37 @@ input[type='range']::-moz-range-thumb {
   .palette-trigger {
     display: none;
   }
+}
+
+/* ---------- lab, docs ---------- */
+
+:root {
+  --chart-1: #138f78;
+  --chart-2: #c4551a;
+}
+.doc-body {
+  min-height: 420px;
+  font-family: var(--serif);
+  font-size: 16.5px;
+  line-height: 1.62;
+}
+.sheet td {
+  padding: 4px 8px 4px 0;
+}
+.cell {
+  width: 100%;
+  min-width: 80px;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  padding: 4px 6px;
+  border-radius: 3px;
+  color: var(--ink);
+}
+.cell:focus {
+  outline: none;
+  background: var(--accent-soft);
+}
+.cell.right {
+  text-align: right;
 }

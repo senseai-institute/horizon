@@ -3,6 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom'
 import Glyph from '../../components/Glyph'
 import { useToast } from '../../components/Toast'
 import { ConfirmButton, Field, formatDate, formatUsd } from '../../components/ui'
+import { SIZE_LABEL } from '../../os/translate'
 import { STAGE_KINDS, stageMeta, workflowById, type StageKind, type Workflow, type WorkflowStage } from '../../os/workflows'
 import { useGraph } from '../../store/derived'
 import { useHorizon } from '../../store/useHorizon'
@@ -22,6 +23,10 @@ export default function InitiativesScreen() {
   const blocks = useOS((s) => s.blocks)
   const agents = useOS((s) => s.agents)
   const downloads = useOS((s) => s.downloads)
+  const blueprints = useOS((s) => s.blueprints)
+  const connections = useOS((s) => s.connections)
+  const experiments = useOS((s) => s.experiments)
+  const docs = useOS((s) => s.docs)
   const { createInitiative, advanceInitiative, openChat } = useOS.getState()
   const goals = useHorizon((s) => s.goals)
   const sleeves = useHorizon((s) => s.sleeves)
@@ -53,6 +58,10 @@ export default function InitiativesScreen() {
   const itPieces = it ? pieces.filter((p) => it.pieceIds.includes(p.id)) : []
   const itBlocks = it ? blocks.filter((b) => it.blockIds.includes(b.id)) : []
   const nextStage = wf && it ? wf.stages[it.stageIndex + 1] : undefined
+  const bp = it ? blueprints.find((b) => b.initiativeId === it.id) : undefined
+  const itExps = it ? experiments.filter((e) => e.initiativeId === it.id) : []
+  const itDocs = it ? docs.filter((d) => d.initiativeId === it.id) : []
+  const DAY = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
   const label = (st: WorkflowStage) => st.label ?? stageMeta(st.kind).label
 
   return (
@@ -164,8 +173,53 @@ export default function InitiativesScreen() {
                   <p className="meta" style={{ margin: 0 }}>Outcome: {wf.outcome}</p>
                 </section>
 
+                {bp && (
+                  <section className="card stack stack-md">
+                    <div className="row row-between row-wrap" style={{ gap: 8 }}>
+                      <span className="label">Blueprint · translated {formatDate(bp.createdAt)} · about {bp.hours} focused hours</span>
+                      <span className="meta">by {bp.by}</span>
+                    </div>
+                    <p className="prose-sm" style={{ margin: 0 }}><strong style={{ fontWeight: 500 }}>Outcome.</strong> {bp.outcome}</p>
+                    <div className="stack stack-sm">
+                      {bp.milestones.map((m) => {
+                        const ps = bp.pieces.filter((x) => x.milestone === m.title)
+                        const done = ps.filter((x) => pieces.find((p) => p.title === x.title && p.status === 'done')).length
+                        return (
+                          <div key={m.title} className="stack stack-xs">
+                            <div className="row row-between"><span style={{ fontWeight: 500 }}>{m.title}</span><span className="meta num">{done}/{ps.length}</span></div>
+                            <div className="meta">Done when: {m.done}</div>
+                            <ul className="stack" style={{ margin: 0, paddingLeft: 18, gap: 2 }}>
+                              {ps.map((x) => {
+                                const live = pieces.find((p) => p.title === x.title)
+                                return <li key={x.title} className="meta" style={{ color: live?.status === 'done' ? 'var(--ink-4)' : live?.status === 'open' || live?.status === 'doing' ? 'var(--ink)' : undefined, textDecoration: live?.status === 'done' ? 'line-through' : undefined }}>{x.title} <span style={{ color: 'var(--ink-4)' }}>· {SIZE_LABEL[x.size]}{x.needs.length ? ` · needs ${x.needs.map((n) => connections.find((c) => c.id === n)?.name ?? n).join(', ')}` : ''}</span></li>
+                              })}
+                            </ul>
+                          </div>
+                        )
+                      })}
+                    </div>
+                    <div className="grid-2">
+                      <div className="stack stack-xs">
+                        <span className="label">Routine</span>
+                        {bp.routine.map((r, i) => <span key={i} className="meta">{r.weekdays.map((d) => DAY[d]).join(', ')} {r.start} · {r.minutes}m — {r.title}</span>)}
+                      </div>
+                      <div className="stack stack-xs">
+                        <span className="label">Connections</span>
+                        <span className="meta">{bp.connections.map((cid) => { const c = connections.find((x) => x.id === cid); return c ? `${c.name}${c.status !== 'ready' ? ' (setup)' : ''}` : cid }).join(' · ')}</span>
+                        <Link to="/connections" className="link-button" style={{ fontSize: 12.5 }}>Connections</Link>
+                      </div>
+                    </div>
+                    <div className="stack stack-xs">
+                      <span className="label">Risks</span>
+                      {bp.risks.map((r, i) => <span key={i} className="meta">— {r}</span>)}
+                    </div>
+                  </section>
+                )}
+
                 <section className="card stack stack-sm">
                   <span className="label">What it has produced</span>
+                  {itExps.map((e) => <div key={e.id} className="row row-between" style={{ fontSize: 14 }}><span>Experiment: <Link to={`/lab?initiative=${it.id}`}>{e.name}</Link></span><span className="meta">{e.status} · {e.metrics.length}/{e.epochs}</span></div>)}
+                  {itDocs.map((d) => <div key={d.id} className="row row-between" style={{ fontSize: 14 }}><span>Doc: <Link to={`/docs?initiative=${it.id}&id=${d.id}`}>{d.title}</Link></span><span className="meta">{d.kind}</span></div>)}
                   {pillar && <div className="row row-between" style={{ fontSize: 14 }}><span>Belief: <Link to={`/beliefs/${pillar.id}`}>{pillar.label}</Link></span><span className="num meta">confidence {(confidence[pillar.id] ?? 50).toFixed(0)}</span></div>}
                   {goal && <div className="row row-between" style={{ fontSize: 14 }}><span>Goal: <Link to={`/goals/${goal.id}`}>{goal.title}</Link></span><span className="num meta">{formatUsd(goal.targetUsd)}</span></div>}
                   {sleeve && <div className="row row-between" style={{ fontSize: 14 }}><span>Sleeve: <Link to="/money">{sleeve.name}</Link></span><span className="num meta">{sleeve.targetPct}% · exit below {sleeve.exitBelow}</span></div>}
@@ -175,7 +229,7 @@ export default function InitiativesScreen() {
                     return <div key={r.id} className="row row-between" style={{ fontSize: 14, gap: 8 }}><span className="row" style={{ gap: 6 }}>{ag && <Glyph size={14} hue={ag.hue} />}<span>Run: <Link to="/agents">{r.title}</Link></span></span><span className="meta">{r.status.replace('_', ' ')}</span></div>
                   })}
                   {itBlocks.map((b) => <div key={b.id} className="row row-between" style={{ fontSize: 14 }}><span>Time: {b.title}</span><span className="meta">{b.day} {b.start} · {b.minutes}m</span></div>)}
-                  {!pillar && !goal && !sleeve && itPieces.length === 0 && itRuns.length === 0 && <p className="meta" style={{ margin: 0 }}>Nothing yet. Advance it.</p>}
+                  {!pillar && !goal && !sleeve && itPieces.length === 0 && itRuns.length === 0 && itExps.length === 0 && itDocs.length === 0 && <p className="meta" style={{ margin: 0 }}>Nothing yet. Advance it.</p>}
                   <div className="row" style={{ gap: 6, paddingTop: 6 }}>
                     <button type="button" className="btn btn-sm" onClick={() => openChat('ag-planner')}>Talk to Planner about it</button>
                     <button type="button" className="btn btn-sm btn-ghost" onClick={() => openChat('ag-horizon')}>Ask Horizon</button>
