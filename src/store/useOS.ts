@@ -4,8 +4,11 @@ import { seedGoals } from '../data/seed'
 import { seedAgents } from '../os/agents'
 import { BioSimulator, flowLevel } from '../os/bio'
 import { LocalProvider, makeRuntimeProvider, type BrainContext, type ModelProvider } from '../os/brain'
+import { computeNudges, planDay, todayKey } from '../os/day'
 import { inboxScore, seedInbox } from '../os/inbox'
-import { piecesForGoal, roadmapTotal, settlePieces } from '../os/planner'
+import { piecesForGoal, roadmapFor, roadmapTotal, settlePieces } from '../os/planner'
+import { chime, haptic } from '../os/senses'
+import type { SenseSettings } from '../os/senses'
 import type {
   Agent,
   BioSample,
@@ -15,11 +18,16 @@ import type {
   FlowLevel,
   FlowSession,
   InboxItem,
+  Initiative,
+  InitiativeStage,
   JourneyPiece,
+  Nudge,
   Run,
   RunEffect,
   Scope,
   Thread,
+  TimeBlock,
+  WidgetId,
 } from '../os/types'
 import { useHorizon } from './useHorizon'
 
@@ -57,6 +65,21 @@ const ago = (h: number) => new Date(Date.now() - h * 3_600_000).toISOString()
 
 function seedRuns(): Run[] {
   return [
+    {
+      id: 'run-research-altsports',
+      agentId: 'ag-planner',
+      title: 'Research: alternative sports participation',
+      intent: 'Gather participation, facility and spend data on racquet and fitness-racing formats, and say whether there is a public-market way in.',
+      status: 'done',
+      steps: [
+        { id: 's1', label: 'Participation data', status: 'done', log: 'Pickleball ~19m US players, padel ~30k courts globally, Hyrox 500k+ entrants.', at: ago(62) },
+        { id: 's2', label: 'Facility economics', status: 'done', log: 'Indoor court utilisation >80% weekday evenings in large metros.', at: ago(61) },
+        { id: 's3', label: 'Public-market route', status: 'done', log: 'Few pure plays. Equipment, facility REITs, apparel, and event operators are the adjacent listed exposure.', at: ago(60) },
+      ],
+      createdAt: ago(64),
+      updatedAt: ago(60),
+      progress: 1,
+    },
     {
       id: 'run-trim-etn',
       agentId: 'ag-trader',
@@ -167,6 +190,13 @@ export interface OSState {
   useRuntime: boolean
   pending: Record<string, boolean>
   lastError: string | null
+  initiatives: Initiative[]
+  blocks: TimeBlock[]
+  nudges: Nudge[]
+  widgets: WidgetId[]
+  senses: SenseSettings
+  deskSinceMs: number
+  paletteOpen: boolean
 
   // chats
   openChat: (agentId: string, threadId?: string) => string
@@ -208,9 +238,68 @@ export interface OSState {
   startSession: (pieceId?: string) => void
   endSession: () => void
 
+  // initiatives
+  createInitiative: (title: string, spark: string, sourceDownloadId?: string) => string
+  advanceInitiative: (id: string) => void
+
+  // day
+  ensureDay: () => void
+  toggleBlock: (id: string) => void
+  refreshNudges: () => void
+  dismissNudge: (id: string) => void
+  logWalk: () => void
+
+  // desk
+  setWidgets: (ids: WidgetId[]) => void
+  setSenses: (patch: Partial<SenseSettings>) => void
+  setPalette: (open: boolean) => void
+
   // system
   setRuntime: (url: string, use: boolean) => void
   resetOS: () => void
+}
+
+export const STAGES: InitiativeStage[] = ['spark', 'research', 'thesis', 'plan', 'cost', 'launch', 'monitor']
+export const STAGE_LABEL: Record<InitiativeStage, string> = {
+  spark: 'Spark',
+  research: 'Research',
+  thesis: 'Thesis',
+  plan: 'Plan',
+  cost: 'Cost',
+  launch: 'Launch',
+  monitor: 'Monitor',
+}
+export const STAGE_HINT: Record<InitiativeStage, string> = {
+  spark: 'Where it came from. A conversation, a drawing, a line in a notebook.',
+  research: 'Ledger and Planner gather what is already known. Comes back as a report.',
+  thesis: 'Written as a belief on the map — a claim, a horizon, and what would prove it wrong.',
+  plan: 'Broken into pieces on the journey, with dependencies.',
+  cost: 'A roadmap with lines and a total. Becomes a goal the money can be pointed at.',
+  launch: 'Agents are given their runs. Time goes on the calendar.',
+  monitor: 'Runs report back to the Desk. Confidence and cost stay live.',
+}
+
+function seedInitiatives(): Initiative[] {
+  return [
+    {
+      id: 'in-altsports',
+      title: 'Alternative sports',
+      spark: 'A conversation with Theo about how everyone he knows under forty plays pickleball, padel or does Hyrox, and none of them watch the NBA.',
+      stage: 'thesis',
+      pillarId: 'p-altsports',
+      thesisId: 't-altsports-participation',
+      pieceIds: [],
+      runIds: ['run-research-altsports'],
+      blockIds: [],
+      history: [
+        { at: ago(70), stage: 'spark', text: 'Captured from a conversation. Kept in the stream.' },
+        { at: ago(60), stage: 'research', text: 'Ledger and Planner pulled participation data and facility counts. Report on the Desk.' },
+        { at: ago(20), stage: 'thesis', text: 'Written as a pillar on the map with one thesis under it. Confidence starts at the prior; nothing attached yet.' },
+      ],
+      createdAt: ago(70),
+      updatedAt: ago(20),
+    },
+  ]
 }
 
 const sim = new BioSimulator()
@@ -222,7 +311,22 @@ function seedState() {
     threads: seedThreads(),
     windows: [] as ChatWindow[],
     runs: seedRuns(),
-    inbox: seedInbox.map((i) => ({ ...i })),
+    inbox: [
+      {
+        id: 'ib-altsports',
+        kind: 'report' as const,
+        from: { name: 'Planner', agentId: 'ag-planner', importance: 1 as const },
+        subject: 'Research: alternative sports — participation is real, the listed exposure is adjacent',
+        body: 'Pickleball, padel and fitness racing are growing at rates traditional team sports have not seen in a generation. There is no pure-play listed company; the exposure is in equipment, indoor facility landlords, apparel and event operators. Recommend writing the thesis at the participation level, not the sport level, and finding companies from there.',
+        urgent: false,
+        at: ago(60),
+        read: true,
+        done: false,
+        runId: 'run-research-altsports',
+        scope: 'personal' as const,
+      },
+      ...seedInbox.map((i) => ({ ...i })),
+    ],
     pieces: seedPieces(),
     downloads: [
       { id: 'dl-1', kind: 'text' as const, content: 'Tool library could co-locate with a trade depot — evenings and weekends when the bays are empty. Ask Mara.', at: ago(30), tags: ['toollib'], routedTo: { goalId: 'g-toollib' } },
@@ -237,6 +341,13 @@ function seedState() {
     useRuntime: false,
     pending: {} as Record<string, boolean>,
     lastError: null as string | null,
+    initiatives: seedInitiatives(),
+    blocks: [] as TimeBlock[],
+    nudges: [] as Nudge[],
+    widgets: ['inbox', 'piece', 'day', 'initiatives', 'feed', 'flow'] as WidgetId[],
+    senses: { sound: false, breathTone: false, haptics: true } as SenseSettings,
+    deskSinceMs: Date.now(),
+    paletteOpen: false,
   }
 }
 
@@ -604,6 +715,7 @@ export const useOS = create<OSState>()(
         set((s) => ({ focus: on, windows: on ? s.windows.map((w) => ({ ...w, minimised: true })) : s.windows }))
       },
       startSession: (pieceId) => {
+        if (get().senses.sound) chime('start')
         sim.setMode('focus')
         set({ session: { id: uid('fs'), startedAt: nowIso(), pieceId, flowMinutes: 0, peak: 'settling' }, focus: true })
         if (pieceId) get().startPiece(pieceId)
@@ -612,6 +724,7 @@ export const useOS = create<OSState>()(
         const s = get()
         if (!s.session) return
         sim.setMode('rest')
+        if (s.senses.sound) chime('end')
         const ended = { ...s.session, endedAt: nowIso() }
         const piece = ended.pieceId ? s.pieces.find((p) => p.id === ended.pieceId) : undefined
         useHorizon.getState().addNote(
@@ -621,13 +734,122 @@ export const useOS = create<OSState>()(
         set({ session: null, focus: false })
       },
 
+      createInitiative: (title, spark, sourceDownloadId) => {
+        const id = uid('in')
+        const at = nowIso()
+        set((s) => ({
+          initiatives: [
+            { id, title, spark, sourceDownloadId, stage: 'spark', pieceIds: [], runIds: [], blockIds: [], history: [{ at, stage: 'spark', text: 'Captured.' }], createdAt: at, updatedAt: at },
+            ...s.initiatives,
+          ],
+        }))
+        useHorizon.getState().addNote(`Initiative: ${title}`, spark)
+        return id
+      },
+
+      /**
+       * Moves an initiative one stage on and does the real thing for that
+       * stage: a research run, a pillar on the map, pieces on the journey, a
+       * costed goal, launched runs and calendar time. Each stage leaves
+       * something you can open.
+       */
+      advanceInitiative: (id) => {
+        const s = get()
+        const it = s.initiatives.find((x) => x.id === id)
+        if (!it) return
+        const next = STAGES[Math.min(STAGES.length - 1, STAGES.indexOf(it.stage) + 1)]
+        if (next === it.stage) return
+        const at = nowIso()
+        const h = useHorizon.getState()
+        const patch: Partial<Initiative> = {}
+        let text = ''
+        if (next === 'research') {
+          const runId = get().createRun('ag-planner', `Research: ${it.title}`, `Gather what is already known about "${it.title}" and say whether there is a way in.`, { kind: 'report', title: `Research: ${it.title}`, body: `What is known about ${it.title}, who is already doing it, and where the money is. (Report produced by the local provider; the runtime would do the reading.)` })
+          patch.runIds = [...it.runIds, runId]
+          text = 'Planner is researching. The report arrives on the Desk when the run completes.'
+        } else if (next === 'thesis') {
+          const { pillarId, thesisId } = h.addBelief({
+            belief: it.title,
+            claim: `${it.spark} If that holds, the spend follows the participation, and the businesses that serve it are worth more than the market thinks.`,
+            horizonYears: 7,
+            falsifiers: ['Participation growth stalls for two consecutive years.', 'The listed exposure never captures the spend — it stays private or local.'],
+          })
+          patch.pillarId = pillarId
+          patch.thesisId = thesisId
+          text = 'Written on the belief map as a pillar with a first thesis under it.'
+        } else if (next === 'plan') {
+          const ids = [
+            get().addPiece({ title: `Find five companies for ${it.title}`, detail: 'Run discovery from the seed companies the research named.', weight: 3, dependsOn: [], agentId: 'ag-planner' }),
+            get().addPiece({ title: `Attach three filings to the ${it.title} thesis`, detail: 'One that argues against it.', weight: 3, dependsOn: [] }),
+            get().addPiece({ title: `Decide the sleeve size for ${it.title}`, detail: 'A target percentage and an exit rule.', weight: 2, dependsOn: [] }),
+          ]
+          patch.pieceIds = [...it.pieceIds, ...ids]
+          text = 'Three pieces on the journey.'
+        } else if (next === 'cost') {
+          const goalId = h.addGoal({ title: `Deploy: ${it.title}`, why: it.spark, kind: 'build', horizon: 'later', targetUsd: 25_000, monthlyUsd: 0, earmarkedUsd: 0 })
+          const goal = h.goals.find((g) => g.id === goalId) ?? useHorizon.getState().goals.find((g) => g.id === goalId)
+          const lines = goal ? roadmapFor(goal) : []
+          const runId = get().createRun('ag-planner', `Cost the ${it.title} plan`, 'Roadmap with lines and a total; the total becomes the goal target.', goal ? { kind: 'roadmap', goalId, lines } : undefined)
+          patch.goalId = goalId
+          patch.runIds = [...it.runIds, runId]
+          text = `A goal on the board and a costed roadmap waiting for review (${money(roadmapTotal(lines))}).`
+        } else if (next === 'launch') {
+          const runIds = [
+            get().createRun('ag-ledger', `Find cash for ${it.title}`, 'Look for over-allocation and idle cash that could fund the first sleeve.', patch.goalId || it.goalId ? { kind: 'earmark', goalId: (patch.goalId ?? it.goalId)!, usd: 5_000, reason: `Seed funding for ${it.title}.` } : undefined),
+            get().createRun('ag-desk', `Watch the inbox for ${it.title}`, 'Surface anything that arrives about it.'),
+          ]
+          const day = todayKey()
+          const blocks: TimeBlock[] = [
+            { id: uid('blk'), day, start: '10:00', minutes: 90, title: `${it.title}: first piece`, kind: 'deep', initiativeId: it.id },
+            { id: uid('blk'), day: todayKey(new Date(Date.now() + 86_400_000)), start: '09:00', minutes: 60, title: `${it.title}: review the runs`, kind: 'admin', initiativeId: it.id },
+          ]
+          set((st) => ({ blocks: [...st.blocks, ...blocks] }))
+          patch.runIds = [...it.runIds, ...runIds]
+          patch.blockIds = [...it.blockIds, ...blocks.map((b) => b.id)]
+          text = 'Two runs launched, waiting for review. Time on the calendar today and tomorrow.'
+        } else if (next === 'monitor') {
+          text = 'Runs report to the Desk. Confidence on the map and cost on the goal stay live from here.'
+        }
+        set({
+          initiatives: get().initiatives.map((x) => (x.id === id ? { ...x, ...patch, stage: next, updatedAt: at, history: [...x.history, { at, stage: next, text }] } : x)),
+        })
+        h.addNote(`${it.title} → ${STAGE_LABEL[next]}`, text)
+      },
+
+      ensureDay: () => {
+        const s = get()
+        const day = todayKey()
+        if (s.blocks.some((b) => b.day === day && !b.initiativeId)) return
+        set({ blocks: [...s.blocks.filter((b) => b.day >= day), ...planDay(s.pieces, inboxScore(s.inbox), day)] })
+      },
+      toggleBlock: (id) => set((s) => ({ blocks: s.blocks.map((b) => (b.id === id ? { ...b, done: !b.done } : b)) })),
+      refreshNudges: () => {
+        const s = get()
+        const fresh = computeNudges({ bio: s.bio, flow: s.flow, session: s.session, deskSinceMs: s.deskSinceMs, inbox: s.inbox, blocks: s.blocks.filter((b) => b.day === todayKey()) })
+        const keep = s.nudges.filter((n) => !n.dismissed && Date.now() - Date.parse(n.at) < 30 * 60_000)
+        const known = new Set(keep.map((n) => n.text))
+        const added = fresh.filter((n) => !known.has(n.text)).map((n) => ({ ...n, id: uid('nd') }))
+        if (added.length && s.senses.haptics) haptic()
+        if (added.length || keep.length !== s.nudges.length) set({ nudges: [...keep, ...added] })
+      },
+      dismissNudge: (id) => set((s) => ({ nudges: s.nudges.map((n) => (n.id === id ? { ...n, dismissed: true } : n)) })),
+      logWalk: () => {
+        set({ deskSinceMs: Date.now(), nudges: get().nudges.map((n) => (n.kind === 'body' ? { ...n, dismissed: true } : n)) })
+        sim.setMode('rest')
+        useHorizon.getState().addNote('Went for a walk', 'Logged from a nudge. Desk timer reset.')
+      },
+
+      setWidgets: (ids) => set({ widgets: ids }),
+      setSenses: (patch) => set((s) => ({ senses: { ...s.senses, ...patch } })),
+      setPalette: (open) => set({ paletteOpen: open }),
+
       setRuntime: (url, use) => set({ runtimeUrl: url, useRuntime: use, lastError: null }),
       resetOS: () => set({ ...seedState() }),
     }),
     {
       name: OS_STORAGE_KEY,
       version: 1,
-      partialize: (s) => ({ ...s, bio: [], pending: {}, lastError: null }) as OSState,
+      partialize: (s) => ({ ...s, bio: [], pending: {}, lastError: null, paletteOpen: false }) as OSState,
     },
   ),
 )

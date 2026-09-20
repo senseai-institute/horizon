@@ -214,3 +214,82 @@ export interface FlowSession {
   flowMinutes: number
   peak: FlowLevel
 }
+
+/* ------------------------------------------------------------------ */
+/* Initiatives — an idea's whole path to an outcome.                   */
+/* ------------------------------------------------------------------ */
+
+/** Spark → research → thesis → plan → cost → launch → monitor. */
+export type InitiativeStage = 'spark' | 'research' | 'thesis' | 'plan' | 'cost' | 'launch' | 'monitor'
+
+export interface InitiativeEvent {
+  at: string
+  stage: InitiativeStage
+  text: string
+}
+
+export interface Initiative {
+  id: string
+  title: string
+  /** Where it came from — a conversation, a drawing, a line in a notebook. */
+  spark: string
+  sourceDownloadId?: string
+  stage: InitiativeStage
+  /** What the stages produced, once they have. */
+  pillarId?: string
+  thesisId?: string
+  goalId?: string
+  pieceIds: string[]
+  runIds: string[]
+  blockIds: string[]
+  history: InitiativeEvent[]
+  createdAt: string
+  updatedAt: string
+}
+
+/* ------------------------------------------------------------------ */
+/* Day — time on the calendar, and the body's say in it.                */
+/* ------------------------------------------------------------------ */
+
+export type BlockKind = 'deep' | 'admin' | 'body' | 'routine' | 'adventure'
+
+export interface TimeBlock {
+  id: string
+  /** YYYY-MM-DD */
+  day: string
+  /** HH:MM, 24h */
+  start: string
+  minutes: number
+  title: string
+  kind: BlockKind
+  pieceId?: string
+  initiativeId?: string
+  done?: boolean
+}
+
+export type NudgeKind = 'body' | 'focus' | 'money' | 'life'
+
+export interface Nudge {
+  id: string
+  at: string
+  kind: NudgeKind
+  text: string
+  /** A single thing to do about it. */
+  action?: { label: string; to?: string; run?: 'walk' | 'breathe' | 'focus' | 'desk' }
+  dismissed?: boolean
+}
+
+/* ------------------------------------------------------------------ */
+/* Widgets — the Desk is made of these.                                */
+/* ------------------------------------------------------------------ */
+
+export type WidgetId = 'inbox' | 'piece' | 'day' | 'initiatives' | 'feed' | 'habits' | 'flow' | 'journey' | 'money'
+
+export interface FeedItem {
+  id: string
+  title: string
+  source: string
+  at: string
+  url: string
+  summary: string
+}

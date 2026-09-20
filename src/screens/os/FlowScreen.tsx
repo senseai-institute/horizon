@@ -4,6 +4,7 @@ import { useToast } from '../../components/Toast'
 import { Stat } from '../../components/ui'
 import { bluetoothAvailable, connectHeartRate, FLOW_HINT, FLOW_LABEL } from '../../os/bio'
 import { breathAt, PHI } from '../../os/geometry'
+import { breathTone, chime, stopBreathTone } from '../../os/senses'
 import { useOS } from '../../store/useOS'
 
 /**
@@ -18,7 +19,8 @@ export default function FlowScreen() {
   const focus = useOS((s) => s.focus)
   const bioSource = useOS((s) => s.bioSource)
   const pieces = useOS((s) => s.pieces)
-  const { startSession, endSession, setFocus, setBioSource, pushBio } = useOS.getState()
+  const senses = useOS((s) => s.senses)
+  const { startSession, endSession, setFocus, setBioSource, pushBio, setSenses } = useOS.getState()
   const toast = useToast()
   const [t, setT] = useState(0)
   const last = bio[bio.length - 1]
@@ -36,6 +38,13 @@ export default function FlowScreen() {
   }, [])
 
   const fill = breathAt(t)
+  useEffect(() => {
+    if (senses.breathTone) breathTone(fill)
+  }, [fill, senses.breathTone])
+  useEffect(() => {
+    if (!senses.breathTone) stopBreathTone()
+    return () => stopBreathTone()
+  }, [senses.breathTone])
   const R = 96
   const gap = R * (1 - fill) * 0.9
   const elapsed = session ? Math.round((Date.now() - Date.parse(session.startedAt)) / 60_000) : 0
@@ -137,6 +146,23 @@ export default function FlowScreen() {
                 and the chats tuck away.
               </p>
             )}
+          </div>
+
+          <div className="card stack stack-sm">
+            <span className="label">Senses</span>
+            <div className="scope-row">
+              <span>Soft tone at the start and end of a session</span>
+              <button type="button" role="switch" aria-checked={senses.sound} className="switch" aria-label="Session tones" onClick={() => { setSenses({ sound: !senses.sound }); if (!senses.sound) chime('start') }} />
+            </div>
+            <div className="scope-row">
+              <span>A low tone that follows the breath figure</span>
+              <button type="button" role="switch" aria-checked={senses.breathTone} className="switch" aria-label="Breath tone" onClick={() => setSenses({ breathTone: !senses.breathTone })} />
+            </div>
+            <div className="scope-row" style={{ borderBottom: 0 }}>
+              <span>A short vibration on a nudge, where the device can</span>
+              <button type="button" role="switch" aria-checked={senses.haptics} className="switch" aria-label="Haptics" onClick={() => setSenses({ haptics: !senses.haptics })} />
+            </div>
+            <p className="meta" style={{ margin: 0 }}>Smell, taste and the room are the runtime's job — see the architecture note.</p>
           </div>
 
           <div className="card stack stack-sm">

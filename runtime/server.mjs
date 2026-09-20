@@ -10,6 +10,7 @@
  *   POST /chat   { agent, messages:[{role:'user'|'assistant', text}], context }
  *   →            { text, actions:[{id,label,effect}], model }
  *
+ *   GET  /feed?url=…   fetch and parse an RSS/Atom feed for the Feed widget
  *   GET  /healthz
  *
  * Run:  ANTHROPIC_API_KEY=... PORT=8787 node server.mjs
@@ -180,12 +181,47 @@ async function chat(body) {
   return { text: text || (actions.length ? 'Here is what I propose.' : ''), actions, model: response.model }
 }
 
+/** Minimal RSS/Atom → items. Enough for a widget; not a feed reader. */
+function parseFeed(xml, source) {
+  const items = []
+  const entries = xml.match(/<(item|entry)\b[\s\S]*?<\/\1>/g) ?? []
+  const pick = (block, tag) => {
+    const m = block.match(new RegExp(`<${tag}[^>]*>([\\s\\S]*?)<\\/${tag}>`, 'i'))
+    return m ? m[1].replace(/<!\[CDATA\[|\]\]>/g, '').replace(/<[^>]+>/g, '').trim() : ''
+  }
+  for (const e of entries.slice(0, 20)) {
+    const link = pick(e, 'link') || (e.match(/<link[^>]*href="([^"]+)"/)?.[1] ?? '')
+    items.push({
+      id: pick(e, 'guid') || pick(e, 'id') || link,
+      title: pick(e, 'title'),
+      source,
+      at: new Date(pick(e, 'pubDate') || pick(e, 'updated') || pick(e, 'published') || Date.now()).toISOString(),
+      url: link,
+      summary: (pick(e, 'description') || pick(e, 'summary') || pick(e, 'content')).slice(0, 240),
+    })
+  }
+  return items
+}
+
 createServer(async (req, res) => {
   res.setHeader('access-control-allow-origin', '*')
   res.setHeader('access-control-allow-headers', 'content-type')
   res.setHeader('access-control-allow-methods', 'POST, GET, OPTIONS')
   if (req.method === 'OPTIONS') return res.writeHead(204).end()
   if (req.url === '/healthz') return res.writeHead(200, { 'content-type': 'text/plain' }).end('ok')
+  if (req.method === 'GET' && req.url?.startsWith('/feed')) {
+    const url = new URL(req.url, 'http://x').searchParams.get('url')
+    if (!url) return res.writeHead(400).end('url required')
+    try {
+      const r = await fetch(url, { headers: { 'user-agent': 'horizon-runtime' } })
+      const xml = await r.text()
+      const source = new URL(url).hostname.replace(/^www\./, '')
+      res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ items: parseFeed(xml, source) }))
+    } catch (e) {
+      res.writeHead(502, { 'content-type': 'application/json' }).end(JSON.stringify({ error: e.message }))
+    }
+    return
+  }
   if (req.method === 'POST' && req.url === '/chat') {
     let raw = ''
     for await (const chunk of req) raw += chunk

@@ -19,6 +19,7 @@ import ValuesScreen from './screens/ValuesScreen'
 import AgentsScreen from './screens/os/AgentsScreen'
 import DeskScreen from './screens/os/DeskScreen'
 import FlowScreen from './screens/os/FlowScreen'
+import InitiativesScreen from './screens/os/InitiativesScreen'
 import JourneyScreen from './screens/os/JourneyScreen'
 import StreamScreen from './screens/os/StreamScreen'
 import SystemScreen from './screens/os/SystemScreen'
@@ -73,6 +74,7 @@ export default function App() {
             <Route path="/onboarding" element={<OnboardingScreen />} />
 
             <Route path="/desk" element={<DeskScreen />} />
+            <Route path="/initiatives" element={<InitiativesScreen />} />
             <Route path="/journey" element={<JourneyScreen />} />
             <Route path="/stream" element={<StreamScreen />} />
             <Route path="/flow" element={<FlowScreen />} />

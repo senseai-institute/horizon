@@ -355,7 +355,36 @@ const companies: GraphNode[] = companySeeds.map((c) => ({
   createdAt: c.createdAt,
 }))
 
-export const seedNodes: GraphNode[] = [...pillars, ...theses, ...categories, ...companies]
+const altSports: GraphNode[] = [
+  {
+    id: 'p-altsports',
+    kind: 'pillar',
+    label: 'Participation beats spectating',
+    claim:
+      'Adults under forty are spending their time and money playing — pickleball, padel, fitness racing, rec leagues — rather than watching. The spend follows the participation: courts, equipment, apparel, events, and the software that runs them.',
+    horizonYears: 7,
+    falsifiers: [
+      'Participation growth in the new formats stalls for two consecutive years.',
+      'The spend stays private and local; no listed business captures it.',
+      'Broadcast sport recovers its under-forty audience.',
+    ],
+    prior: 58,
+    createdAt: '2026-09-17T14:00:00Z',
+  },
+  {
+    id: 't-altsports-participation',
+    kind: 'thesis',
+    label: 'Court and facility operators are capacity-constrained',
+    claim:
+      'Indoor racquet facilities in large metros run above eighty percent utilisation on weekday evenings and cannot be built fast enough. Whoever owns or equips the courts has pricing power for the next five years.',
+    horizonYears: 5,
+    falsifiers: ['Utilisation falls below sixty percent as supply catches up.', 'Municipal courts absorb the demand at no charge.'],
+    prior: 55,
+    createdAt: '2026-09-17T14:10:00Z',
+  },
+]
+
+export const seedNodes: GraphNode[] = [...pillars, ...theses, ...categories, ...companies, ...altSports]
 
 /* ------------------------------------------------------------------ */
 /* Edges. Every link carries the reason it exists.                     */
@@ -371,6 +400,7 @@ const edge = (from: string, to: string, weight: number, rationale: string, creat
 })
 
 export const seedEdges: GraphEdge[] = [
+  edge('t-altsports-participation', 'p-altsports', 0.8, 'Capacity is the cleanest measurable version of the participation claim.', '2026-09-17T14:12:00Z'),
   // Theses under pillars
   edge('t-food', 'p-outsourced', 0.9, 'Cooking is the largest single block of unpaid household labour. If any category proves the pillar, it is this one.', '2025-11-05T10:22:00Z'),
   edge('t-home-repair', 'p-outsourced', 0.85, 'Repair work is the second-largest block of household labour and the one with the steepest skill barrier.', '2025-11-05T10:46:00Z'),

@@ -7,11 +7,14 @@ import { useHorizon } from '../store/useHorizon'
 import { bioSimulator, useOS } from '../store/useOS'
 import { BuddyDock, ChatLayer } from './ChatWindows'
 import Glyph from './Glyph'
+import Palette from './Palette'
+import NudgeBar from './NudgeBar'
 import { IconDoc, IconGoal, IconMap, IconQueue, IconSleeves, IconToday, IconValues } from './icons'
 import { ConfirmButton } from './ui'
 
 const WORK = [
   { to: '/desk', label: 'Desk', icon: <IconToday /> },
+  { to: '/initiatives', label: 'Initiatives', icon: <IconGoal /> },
   { to: '/journey', label: 'Journey', icon: <IconQueue /> },
   { to: '/stream', label: 'Stream', icon: <IconDoc /> },
   { to: '/flow', label: 'Flow', icon: <IconValues /> },
@@ -41,6 +44,9 @@ export default function OSShell() {
   const pushBio = useOS((s) => s.pushBio)
   const setFocus = useOS((s) => s.setFocus)
   const regenerate = useOS((s) => s.regeneratePieces)
+  const ensureDay = useOS((s) => s.ensureDay)
+  const refreshNudges = useOS((s) => s.refreshNudges)
+  const setPalette = useOS((s) => s.setPalette)
   const resetOS = useOS((s) => s.resetOS)
   const resetNotebook = useHorizon((s) => s.resetNotebook)
   const goals = useHorizon((s) => s.goals)
@@ -53,11 +59,15 @@ export default function OSShell() {
     const heart = setInterval(() => {
       if (bioSource === 'simulator') pushBio(bioSimulator.next())
     }, 2000)
+    const nudges = setInterval(refreshNudges, 15_000)
+    ensureDay()
+    refreshNudges()
     return () => {
       clearInterval(runs)
       clearInterval(heart)
+      clearInterval(nudges)
     }
-  }, [tick, pushBio, bioSource])
+  }, [tick, pushBio, bioSource, refreshNudges, ensureDay])
 
   /* New goals get pieces on the journey. */
   useEffect(() => {
@@ -72,6 +82,10 @@ export default function OSShell() {
           Horizon
         </NavLink>
         <span className="meta">personal operating system</span>
+        <button type="button" className="palette-trigger" onClick={() => setPalette(true)} title="Find anything (⌘K)">
+          <span>Find anything…</span>
+          <kbd className="mono">⌘K</kbd>
+        </button>
         <div className="topbar-status">
           <NavLink to="/desk" className="status-pill" title="Inbox score — bring it down by doing the work">
             <span>Inbox</span>
@@ -127,8 +141,10 @@ export default function OSShell() {
       </nav>
 
       <main className="os-main">
+        <NudgeBar />
         <Outlet />
       </main>
+      <Palette />
 
       <BuddyDock />
       <ChatLayer />

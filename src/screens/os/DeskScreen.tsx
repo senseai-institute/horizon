@@ -1,10 +1,10 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import Glyph from '../../components/Glyph'
-import { formatUsd, relativeTime } from '../../components/ui'
+import { relativeTime } from '../../components/ui'
 import { inboxScore, itemScore, scoreWord } from '../../os/inbox'
-import { journeyProgress } from '../../os/planner'
-import type { InboxItem } from '../../os/types'
+import type { InboxItem, WidgetId } from '../../os/types'
+import { WIDGETS } from '../../os/widgets'
 import { useGoalViews } from '../../store/derived'
 import { useOS } from '../../store/useOS'
 
@@ -18,11 +18,13 @@ export default function DeskScreen() {
   const pieces = useOS((s) => s.pieces)
   const agents = useOS((s) => s.agents)
   const runs = useOS((s) => s.runs)
-  const { markRead, markDone, reply, openChat, startSession } = useOS.getState()
+  const widgets = useOS((s) => s.widgets)
+  const { markRead, markDone, reply, openChat, setWidgets } = useOS.getState()
   const goals = useGoalViews()
   const [selected, setSelected] = useState<string | null>(null)
   const [filter, setFilter] = useState<'open' | 'all'>('open')
   const [replyText, setReplyText] = useState('')
+  const [customising, setCustomising] = useState(false)
 
   const score = inboxScore(inbox)
   const rows = useMemo(
@@ -33,11 +35,18 @@ export default function DeskScreen() {
     [inbox, filter],
   )
   const item = inbox.find((i) => i.id === selected) ?? null
-  const progress = journeyProgress(pieces)
-  const open = pieces.filter((p) => p.status === 'open' || p.status === 'doing')
-  const next = open.sort((a, b) => (a.status === 'doing' ? -1 : 1) - (b.status === 'doing' ? -1 : 1) || a.weight - b.weight)[0]
   const goalOf = (id?: string) => goals.projections.find((p) => p.goal.id === id)?.goal
   const run = item?.runId ? runs.find((r) => r.id === item.runId) : undefined
+  const shownWidgets = widgets.filter((id) => id !== 'inbox').map((id) => WIDGETS.find((w) => w.id === id)!).filter(Boolean)
+  const move = (id: WidgetId, dir: -1 | 1) => {
+    const ids = [...widgets]
+    const i = ids.indexOf(id)
+    const j = i + dir
+    if (i < 0 || j < 0 || j >= ids.length) return
+    ;[ids[i], ids[j]] = [ids[j], ids[i]]
+    setWidgets(ids)
+  }
+  void pieces
 
   const select = (i: InboxItem) => {
     setSelected(i.id)
@@ -186,52 +195,44 @@ export default function DeskScreen() {
                 </div>
               )}
             </article>
-          ) : (
-            <article className="card stack stack-md">
-              <div className="row row-between">
-                <span className="label">The journey · {Math.round(progress.ratio * 100)}% of the way</span>
-                <Link to="/journey" className="link-button" style={{ fontSize: 13 }}>
-                  See the map
-                </Link>
-              </div>
-              <div className="progress" style={{ height: 6 }}>
-                <div className="progress-fill" style={{ width: `${progress.ratio * 100}%` }} />
-              </div>
-              {next ? (
-                <>
-                  <div>
-                    <span className="label">{next.status === 'doing' ? 'In progress' : 'Nearest piece'}</span>
-                    <h2 style={{ marginTop: 6 }}>{next.title}</h2>
-                    <p className="prose-sm" style={{ margin: '8px 0 0' }}>
-                      {next.detail}
-                    </p>
-                  </div>
-                  <div className="row row-wrap" style={{ gap: 12 }}>
-                    <span className="meta">weight {next.weight}</span>
-                    {next.goalId && goalOf(next.goalId) && <span className="meta">for {goalOf(next.goalId)!.title}</span>}
-                    {next.costUsd ? <span className="meta">{formatUsd(next.costUsd)}</span> : null}
-                  </div>
-                  <div className="row row-wrap" style={{ gap: 8 }}>
-                    <button type="button" className="btn btn-primary" onClick={() => startSession(next.id)}>
-                      Start a focus session on this
-                    </button>
-                    {next.agentId && (
-                      <button type="button" className="btn" onClick={() => openChat(next.agentId!)}>
-                        Ask {agents.find((a) => a.id === next.agentId)?.name}
-                      </button>
+          ) : null}
+
+          <div className="row row-between">
+            <span className="label">Widgets</span>
+            <button type="button" className="btn btn-sm btn-ghost" onClick={() => setCustomising((v) => !v)}>
+              {customising ? 'Done' : 'Customise'}
+            </button>
+          </div>
+          {customising && (
+            <div className="card stack stack-xs" style={{ background: 'var(--paper-sunken)' }}>
+              {WIDGETS.filter((w) => w.id !== 'inbox').map((w) => {
+                const on = widgets.includes(w.id)
+                return (
+                  <div key={w.id} className="row row-between" style={{ gap: 8, fontSize: 13.5 }}>
+                    <label className="row" style={{ gap: 8, flex: 1 }}>
+                      <input type="checkbox" checked={on} onChange={() => setWidgets(on ? widgets.filter((x) => x !== w.id) : [...widgets, w.id])} />
+                      <span>{w.label}</span>
+                      <span className="meta">{w.blurb}</span>
+                    </label>
+                    {on && (
+                      <span className="row" style={{ gap: 2 }}>
+                        <button type="button" className="btn btn-sm btn-ghost" onClick={() => move(w.id, -1)} aria-label="Move up">↑</button>
+                        <button type="button" className="btn btn-sm btn-ghost" onClick={() => move(w.id, 1)} aria-label="Move down">↓</button>
+                      </span>
                     )}
                   </div>
-                </>
-              ) : (
-                <p className="prose-sm" style={{ margin: 0 }}>
-                  Nothing open on the journey. Add a goal and Planner lays out the pieces.
-                </p>
-              )}
-              <p className="meta" style={{ margin: 0 }}>
-                Select something on the left to work it. The score moves when you do.
-              </p>
-            </article>
+                )
+              })}
+              <p className="meta" style={{ margin: '6px 0 0' }}>New widgets are one entry in the registry. A Feedly key, a GitHub queue, a calendar — same shape.</p>
+            </div>
           )}
+          <div className="widget-grid">
+            {shownWidgets.map((w) => (
+              <section key={w.id} className={`card widget span-${w.span}`}>
+                <w.Component />
+              </section>
+            ))}
+          </div>
         </section>
       </div>
     </div>

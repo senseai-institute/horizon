@@ -44,7 +44,17 @@ proposes still waits for you. See `runtime/README.md`.
 
 ## What it is
 
-**Desk.** The main surface. Everything that arrives — email, agent messages,
+**Find anything.** ⌘K. Type the name of an app, a goal, a piece, an agent, a
+belief, a download — it is there. Type a sentence and Horizon takes it as a
+chat, or keeps it in the stream. One place to look.
+
+**Initiatives.** An idea, all the way to an outcome: spark → research →
+thesis → plan → cost → launch → monitor. Each stage does something real and
+leaves something you can open — a research run, a pillar on the belief map,
+pieces on the journey, a costed goal with a roadmap, launched runs and time on
+the calendar. The alternative-sports initiative ships mid-flight.
+
+**Desk.** The main surface, made of widgets you switch on and reorder. Everything that arrives — email, agent messages,
 reports, approvals — in one list with an *inbox score*: sender importance ×
 urgency × time waited. Reading does not move it. Replying, approving,
 finishing does. When nothing is selected, the Desk shows the nearest piece of
@@ -70,11 +80,18 @@ piece has a weight; distance travelled is the sum.
 capture is a *download* you can hand to Scribe, drop on the journey, or attach
 to a goal.
 
+**Today and nudges.** A day plan generated from the journey, the inbox and
+the body — deep work in the morning, a walk between blocks, admin after
+lunch, one unplanned hour. The nudge engine watches sitting time, heart-rate
+trend and what is waiting, and says one thing at a time: go outside, four
+breaths, clear the desk before you leave.
+
 **Flow.** Heart rate, variability, breath — simulated by default, real over Web
 Bluetooth with any standard heart-rate monitor. The OS names your state and
 gets out of the way when you are working well: focus mode hides the rail, the
 dock and the chats. A vesica-piscis breathing figure paces in-hold-out at 4 :
-2 : 4φ.
+2 : 4φ. Senses you can switch on: a soft tone at the edges of a session, a
+low tone that follows the breath, a short vibration on a nudge.
 
 **Life.** The goals, habits, beliefs, values and money that the earlier builds
 established, unchanged in substance: goals on four horizons with projections;
@@ -106,6 +123,10 @@ calls as proposals and applies none of them.
 
 ## Architecture
 
+The plan for the real thing — Mac Mini runtime, local models, encrypted store,
+connectors, booting into it, all six senses — is in
+[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+
 ```
 src/os/
   types.ts      agents, scopes, runs, inbox, threads, journey, downloads, biometrics
@@ -116,8 +137,12 @@ src/os/
                 RuntimeProvider (HTTP to runtime/)
   bio.ts        biometric simulator, flow level, Web Bluetooth heart-rate hookup
   geometry.ts   φ, seed of life, hex spiral, vesica breathing
-src/store/useOS.ts    chats, runs (with a scheduler), inbox, journey, stream, flow
-runtime/server.mjs    Anthropic SDK; tools mirror the effects the UI applies
+  day.ts        the day plan and the nudge engine
+  senses.ts     tones and haptics
+  widgets.tsx   the widget registry — one entry per widget
+src/store/useOS.ts    chats, runs (with a scheduler), inbox, journey, stream, flow,
+                      initiatives, day, nudges, widgets, senses
+runtime/server.mjs    Anthropic SDK; tools mirror the effects the UI applies; /feed
 ```
 
 The scheduler (`tick`) advances approved runs one step every 1.4 s and writes
