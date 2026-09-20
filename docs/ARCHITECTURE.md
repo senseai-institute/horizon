@@ -111,11 +111,67 @@ Three steps, in order, each one usable on its own:
 
 ## Initiatives as the spine
 
-Spark → research → thesis → plan → cost → launch → monitor. Every stage does
-something real and leaves something openable. The alternative-sports
-initiative in the sample shows it mid-flight. Templates ("build a product",
-"research a thesis and deploy it", "plan a trip", "hire someone") are
-initiatives with the stages pre-written.
+Spark → translate → connect → gather → experiment → evaluate → protect →
+decide, or the product and thesis variants. Every stage does something real
+and leaves something openable. The hawk-vision initiative in the sample shows
+the invention workflow mid-flight; alternative sports and the tool library
+show the other two.
+
+## Translation — the ribosome
+
+An idea is a message; the blueprint is what gets built from it. The translate
+stage is one function, `translate(idea) → Blueprint`, and in the real thing
+it is the local model with a strict schema: milestones with a "done when",
+pieces sized hour / morning / day / week with dependencies and the
+connections they need, risks, hours, and a routine. Pieces go to the journey
+with their dependencies so the flower-of-life packing shows what is open;
+the routine goes into the day planner, which folds it into every day it
+applies to for as long as the initiative is alive. When a piece finishes, the
+next ring unlocks; nothing else is required of you.
+
+## Connections and the transactional internet
+
+Three rings. **On the machine**: the local model, the encrypted store, docs,
+the PDF reader, the dataset store, the labelling tool, the training runner
+and experiment tracker, weights, the camera. Always on, yours. **On the
+network**: a package mirror and git on the Mac Mini, reached from any device
+in the house. **On the internet**: papers, a cloud model for the rare hard
+question, CI, email, calendar, filings, broker, bank, HR tools, the invention
+record. Every internet use is a *transaction* — a proposal an agent makes, a
+log line with what left and what came back, approved by you or by a standing
+rule you wrote. The default state of the system is offline and working.
+Each connection is a small MCP server in the runtime; the catalogue in the
+UI is its manifest.
+
+## The lab
+
+Datasets are directories on local disk with a provenance line and a held-out
+split nobody looks at. An experiment is a config, a dataset and a metric
+chosen before training. The scheduler trains one at a time on the local GPU
+(the same `tick` that advances runs); curves are written back as epochs
+finish and appear on the Desk and in the Lab. Evaluate writes the report.
+Protect writes a model card and an invention record: the config, the data
+hashes, the weights hash and the date, signed with your key, kept in the
+store. That is the IP boundary made concrete — what you built, from what,
+when.
+
+## Docs and sheets as the working surface
+
+Every artefact an agent produces is a doc or a sheet attached to the
+initiative: the research notes, the spec, the cost table, the model card. You
+edit in place. The development loop connects through git and CI: a piece
+that says "implement the fovea head" opens a branch, the CI run reports into
+the inbox, the review is a run you approve. Docs, sheets, code and money in
+one place, on one store.
+
+## After hours
+
+The business runs while you are at work. Agents finish runs, the lab trains,
+the inbox scores. When you log in from a personal device in the evening the
+Desk opens on *since you were away* — runs finished, approvals waiting, what
+arrived, how far the experiment got — then the review queue, then a creative
+session in Flow. The routine written by the blueprint is what keeps the
+personal work moving on the mornings and the Saturday it asked for.
 
 ## Later
 

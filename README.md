@@ -49,14 +49,56 @@ belief, a download — it is there. Type a sentence and Horizon takes it as a
 chat, or keeps it in the stream. One place to look.
 
 **Initiatives and workflows.** An idea runs on an explicit workflow to an
-outcome. Two ship built in — **Idea → Product** (spark, shape, first ten,
-cost, build, launch, time, monitor, decide) and **Idea → Thesis → Trade →
-Monitor** (spark, research, thesis, ground, size a sleeve, trade, monitor) —
-plus a short **Question → Answer**. Every stage kind has one executor that
-does the real thing and leaves something openable: a research run, a pillar
-on the belief map, pieces on the journey, a costed goal, a sleeve under Money,
-prepared orders waiting for review, time on the day. A designer assembles new
-workflows from the same stage kinds. Two initiatives ship mid-flight.
+outcome. Four ship built in — **Idea → Invention** (spark, translate, connect,
+gather, experiment, evaluate, protect, decide), **Idea → Product** (spark,
+shape, first ten, cost, build, launch, time, monitor, decide), **Idea →
+Thesis → Trade → Monitor** (spark, research, thesis, ground, size a sleeve,
+trade, monitor) — plus a short **Question → Answer**. Every stage kind has one
+executor that does the real thing and leaves something openable: a research
+run, a pillar on the belief map, pieces on the journey, a costed goal, a
+sleeve under Money, prepared orders waiting for review, a dataset, a trained
+model, time on the day. A designer assembles new workflows from the same
+stage kinds. Three initiatives ship mid-flight.
+
+**Translate — the ribosome.** The hard part is not having the idea, it is
+turning a fully formed idea in your head into practical, bite-sized steps and
+a routine that fits them. The *translate* stage reads the idea, decides its
+shape (a model, software, a physical thing, a study, a venture) and writes a
+**blueprint**: milestones with a "done when", pieces sized *hour / morning /
+day / week* with dependencies, the connections each piece needs, the risks,
+and a **routine** — which weekdays, what time, how long — that is folded into
+the day plan for as long as the initiative is alive. The sample carries the
+hawk-vision model: a detector organised like a hawk's eye (a cheap periphery
+steering two expensive foveae, motion first), five milestones, fourteen
+pieces, about fifty focused hours, Tuesday and Thursday mornings plus Saturday.
+
+**Connections.** What the OS can reach and on what terms, in three rings:
+*on the machine* (local model, encrypted store, docs and sheets, PDF reader,
+dataset store, labelling tool, training runner, experiment tracker, weights,
+camera), *on the network* (package mirror, git), and *on the internet*
+(papers, cloud model, CI, email, calendar, filings, broker, bank, HR
+tools, invention record). Internet connections are **transactional** — every
+use is a proposal, approved and logged — so the default is offline and the
+work still gets done. Each connection shows who uses it and which initiative
+needs it; the *connect* stage posts a checklist of what still needs setting
+up.
+
+**Lab.** The data-science suite. Datasets with provenance and a held-out
+split, experiments queued from an initiative and trained **one at a time by
+the scheduler** while you are away, loss curves drawn as they arrive, a
+metric chosen before training, and a *promote* action that makes one run
+"the model". *Evaluate* writes the report; *protect* writes a model card and
+a hashed invention record that says the thing is yours.
+
+**Docs and sheets.** Specs, research notes, model cards, cost tables and
+invention records live with the initiative they belong to, not in five other
+apps. Docs autosave; sheets total their numeric columns. Agents write into
+them; you edit in place.
+
+**Since you were away.** The business runs in the background. The Desk's
+first widget says what happened since you last looked — runs finished,
+approvals waiting, what arrived, how far the experiment got — so an evening
+log-in on a personal device starts with review, then a creative session.
 
 **Desk.** The main surface, made of widgets you switch on and reorder. Everything that arrives — email, agent messages,
 reports, approvals — in one list with an *inbox score*: sender importance ×
@@ -145,8 +187,12 @@ src/os/
   senses.ts     tones and haptics
   widgets.tsx   the widget registry — one entry per widget
   workflows.ts  stage kinds and the built-in workflows
+  translate.ts  idea → blueprint (milestones, sized pieces, routine, risks)
+  connections.ts the connection catalogue: machine / network / internet
+  lab.ts        datasets, experiments, one epoch per tick
 src/store/useOS.ts    chats, runs (with a scheduler), inbox, journey, stream, flow,
-                      initiatives, day, nudges, widgets, senses
+                      initiatives, day, nudges, widgets, senses, blueprints,
+                      connections, datasets, experiments, docs, sheets, routines
 runtime/server.mjs    Anthropic SDK; tools mirror the effects the UI applies; /feed
 ```
 
@@ -159,8 +205,10 @@ outcomes back into the inbox. Effects (`trade`, `earmark`, `roadmap`, `pieces`,
 ## The sample
 
 Six agents, three runs (two awaiting review), eight inbox items, two threads,
-journey pieces for every active goal, two downloads, plus everything from the
-earlier sample notebook. All fabricated. Filing passages and values scores are
+journey pieces for every active goal, two downloads, three initiatives (the
+hawk-vision invention with its blueprint, two experiments and datasets, a
+research doc, a spec and a cost sheet), twenty-two connections, plus
+everything from the earlier sample notebook. All fabricated. Filing passages and values scores are
 illustrative and say so in the UI.
 
 ## Not in this build

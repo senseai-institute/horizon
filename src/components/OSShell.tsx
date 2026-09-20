@@ -16,6 +16,8 @@ const WORK = [
   { to: '/desk', label: 'Desk', icon: <IconToday /> },
   { to: '/initiatives', label: 'Initiatives', icon: <IconGoal /> },
   { to: '/journey', label: 'Journey', icon: <IconQueue /> },
+  { to: '/lab', label: 'Lab', icon: <IconValues /> },
+  { to: '/docs', label: 'Docs', icon: <IconDoc /> },
   { to: '/stream', label: 'Stream', icon: <IconDoc /> },
   { to: '/flow', label: 'Flow', icon: <IconValues /> },
   { to: '/agents', label: 'Agents', icon: <IconMap /> },
@@ -62,10 +64,12 @@ export default function OSShell() {
     const nudges = setInterval(refreshNudges, 15_000)
     ensureDay()
     refreshNudges()
+    const seen = setTimeout(() => useOS.getState().markSeen(), 45_000)
     return () => {
       clearInterval(runs)
       clearInterval(heart)
       clearInterval(nudges)
+      clearTimeout(seen)
     }
   }, [tick, pushBio, bioSource, refreshNudges, ensureDay])
 
@@ -119,6 +123,10 @@ export default function OSShell() {
           </NavLink>
         ))}
         <div className="nav-group-label label">System</div>
+        <NavLink to="/connections" className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}>
+          <span className="nav-item-icon"><IconMap /></span>
+          <span>Connections</span>
+        </NavLink>
         <NavLink to="/system" className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}>
           <span className="nav-item-icon">
             <Glyph size={14} />

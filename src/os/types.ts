@@ -241,6 +241,9 @@ export interface Initiative {
   thesisId?: string
   goalId?: string
   sleeveId?: string
+  blueprintId?: string
+  experimentIds?: string[]
+  docIds?: string[]
   pieceIds: string[]
   runIds: string[]
   blockIds: string[]
@@ -285,7 +288,7 @@ export interface Nudge {
 /* Widgets — the Desk is made of these.                                */
 /* ------------------------------------------------------------------ */
 
-export type WidgetId = 'inbox' | 'piece' | 'day' | 'initiatives' | 'feed' | 'habits' | 'flow' | 'journey' | 'money'
+export type WidgetId = 'inbox' | 'piece' | 'day' | 'initiatives' | 'feed' | 'habits' | 'flow' | 'journey' | 'money' | 'away' | 'lab'
 
 export interface FeedItem {
   id: string
@@ -294,4 +297,150 @@ export interface FeedItem {
   at: string
   url: string
   summary: string
+}
+
+/* ------------------------------------------------------------------ */
+/* Translation — a fully formed idea into bite-sized, realistic work.  */
+/* ------------------------------------------------------------------ */
+
+export type PieceSize = 'hour' | 'morning' | 'day' | 'week'
+
+export interface BlueprintPiece {
+  title: string
+  detail: string
+  size: PieceSize
+  weight: 1 | 2 | 3 | 5 | 8
+  /** Titles of pieces this one waits on, within the blueprint. */
+  after: string[]
+  agentId?: string
+  /** Connection ids this piece needs to exist before it can start. */
+  needs: string[]
+  milestone: string
+}
+
+export interface Milestone {
+  title: string
+  /** What is true when it is done. */
+  done: string
+}
+
+export interface RoutineBlock {
+  /** 0 = Sunday … 6 = Saturday */
+  weekdays: number[]
+  start: string
+  minutes: number
+  title: string
+  kind: BlockKind
+}
+
+export interface Blueprint {
+  id: string
+  initiativeId: string
+  /** The idea, as fully as it was given. */
+  idea: string
+  /** One sentence: what exists when this is finished. */
+  outcome: string
+  milestones: Milestone[]
+  pieces: BlueprintPiece[]
+  /** Connection ids the whole thing needs. */
+  connections: string[]
+  routine: RoutineBlock[]
+  risks: string[]
+  /** Rough total, in focused hours. */
+  hours: number
+  createdAt: string
+  /** 'local' when the template engine produced it; a model name when the runtime did. */
+  by: string
+}
+
+/* ------------------------------------------------------------------ */
+/* Connections — everything the OS can reach, and on what terms.       */
+/* ------------------------------------------------------------------ */
+
+export type ConnectionKind = 'local' | 'mcp' | 'api' | 'device' | 'file'
+export type ConnectionStatus = 'ready' | 'needs-setup' | 'off'
+
+export interface Connection {
+  id: string
+  name: string
+  kind: ConnectionKind
+  /** What it gives the OS. */
+  gives: string
+  /** Where it runs: on the machine, on the LAN, or out on the internet. */
+  where: 'machine' | 'lan' | 'internet'
+  /** Internet connections are transactional: each use is approved and logged. */
+  transactional: boolean
+  scope: 'personal' | 'company' | 'both'
+  status: ConnectionStatus
+  /** Agents that use it. */
+  usedBy: string[]
+}
+
+/* ------------------------------------------------------------------ */
+/* Lab — datasets, experiments, models.                                */
+/* ------------------------------------------------------------------ */
+
+export interface Dataset {
+  id: string
+  initiativeId?: string
+  name: string
+  /** Where it lives. Always local in this build. */
+  path: string
+  items: number
+  sizeMb: number
+  /** How it was made: captured, licensed, synthetic, derived. */
+  provenance: string
+  labelled: boolean
+}
+
+export interface EpochMetric {
+  epoch: number
+  trainLoss: number
+  valLoss: number
+  metric: number
+}
+
+export interface Experiment {
+  id: string
+  initiativeId?: string
+  name: string
+  hypothesis: string
+  datasetId: string
+  config: Record<string, string | number>
+  status: 'queued' | 'running' | 'done' | 'failed' | 'promoted'
+  epochs: number
+  metrics: EpochMetric[]
+  /** The metric's name, e.g. mAP@50. */
+  metricName: string
+  device: string
+  createdAt: string
+  finishedAt?: string
+  notes?: string
+}
+
+/* ------------------------------------------------------------------ */
+/* Documents — docs and sheets, in one place.                          */
+/* ------------------------------------------------------------------ */
+
+export interface Doc {
+  id: string
+  initiativeId?: string
+  title: string
+  /** Plain text with light structure: lines beginning with # are headings. */
+  body: string
+  kind: 'note' | 'spec' | 'research' | 'model-card' | 'disclosure'
+  createdAt: string
+  updatedAt: string
+}
+
+export interface Sheet {
+  id: string
+  initiativeId?: string
+  title: string
+  columns: string[]
+  /** Numeric columns get a total row. */
+  numeric: boolean[]
+  rows: (string | number)[][]
+  createdAt: string
+  updatedAt: string
 }

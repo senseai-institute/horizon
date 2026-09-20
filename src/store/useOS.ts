@@ -11,10 +11,20 @@ import { piecesForGoal, roadmapFor, roadmapTotal, settlePieces } from '../os/pla
 import { chime, haptic } from '../os/senses'
 import type { SenseSettings } from '../os/senses'
 import { BUILTIN_WORKFLOWS, stageMeta, workflowById, type StageKind, type Workflow } from '../os/workflows'
+import { seedConnections } from '../os/connections'
+import { nextEpoch, seedDatasets, seedDocs, seedExperiments } from '../os/lab'
+import { translate } from '../os/translate'
 import type {
   Agent,
   BioSample,
+  Blueprint,
   ChatMsg,
+  Connection,
+  Dataset,
+  Doc,
+  Experiment,
+  RoutineBlock,
+  Sheet,
   ChatWindow,
   Download,
   FlowLevel,
@@ -200,6 +210,15 @@ export interface OSState {
   senses: SenseSettings
   deskSinceMs: number
   paletteOpen: boolean
+  blueprints: Blueprint[]
+  connections: Connection[]
+  datasets: Dataset[]
+  experiments: Experiment[]
+  docs: Doc[]
+  sheets: Sheet[]
+  routines: (RoutineBlock & { id: string; initiativeId: string })[]
+  /** When the person last looked. Everything after it is "since you were away". */
+  lastSeenAt: string
 
   // chats
   openChat: (agentId: string, threadId?: string) => string
@@ -254,6 +273,17 @@ export interface OSState {
   dismissNudge: (id: string) => void
   logWalk: () => void
 
+  // invention
+  translateInitiative: (id: string) => string | undefined
+  setConnectionStatus: (id: string, status: Connection['status']) => void
+  startExperiment: (input: Omit<Experiment, 'id' | 'createdAt' | 'status' | 'metrics'>) => string
+  promoteExperiment: (id: string) => void
+  addDataset: (d: Omit<Dataset, 'id'>) => string
+  saveDoc: (doc: Partial<Doc> & { title: string; body: string; kind?: Doc['kind']; initiativeId?: string }) => string
+  deleteDoc: (id: string) => void
+  saveSheet: (sheet: Partial<Sheet> & { title: string; columns: string[]; numeric: boolean[]; rows: (string | number)[][]; initiativeId?: string }) => string
+  markSeen: () => void
+
   // desk
   setWidgets: (ids: WidgetId[]) => void
   setSenses: (patch: Partial<SenseSettings>) => void
@@ -288,6 +318,28 @@ function seedInitiatives(): Initiative[] {
       ],
       createdAt: ago(70),
       updatedAt: ago(20),
+    },
+    {
+      id: 'in-hawk',
+      title: 'Hawk vision',
+      spark: 'A hawk finds a mouse from a hundred metres up, at speed, against grass. Two foveae per eye, cone density five times ours, flicker fusion far above a human\u2019s. What if a detector was organised the same way — a cheap periphery that steers two expensive foveae, motion first, objectness second? A model built on that, trained on frames I captured myself, evaluated against a number chosen before training, owned end to end.',
+      workflowId: 'wf-invention',
+      stageIndex: 4,
+      blueprintId: 'bp-in-hawk',
+      experimentIds: ['ex-hawk-baseline', 'ex-hawk-fovea'],
+      docIds: ['doc-hawk-translation', 'doc-hawk-spec'],
+      pieceIds: [],
+      runIds: [],
+      blockIds: [],
+      history: [
+        { at: ago(130), stage: 'spark', text: 'From a field day and a paper on raptor retinas. Kept.' },
+        { at: ago(120), stage: 'translate', text: 'Blueprint: five milestones, fourteen pieces, twelve connections, a routine of three blocks a week. About fifty focused hours.' },
+        { at: ago(100), stage: 'connect', text: 'Nine of twelve connections ready. Labelling tool, training runner and paper search still to set up.' },
+        { at: ago(80), stage: 'gather', text: 'Three datasets in the lab: 1,240 clips, 9,800 frames, a sealed held-out set of 200. Translation doc and spec written.' },
+        { at: ago(3), stage: 'experiment', text: 'Baseline done at 0.57. Dual-fovea run started.' },
+      ],
+      createdAt: ago(130),
+      updatedAt: ago(3),
     },
     {
       id: 'in-toollib',
@@ -355,10 +407,37 @@ function seedState() {
     workflows: [] as Workflow[],
     blocks: [] as TimeBlock[],
     nudges: [] as Nudge[],
-    widgets: ['inbox', 'piece', 'day', 'initiatives', 'feed', 'flow'] as WidgetId[],
+    widgets: ['inbox', 'away', 'piece', 'day', 'lab', 'initiatives', 'feed', 'flow'] as WidgetId[],
     senses: { sound: false, breathTone: false, haptics: true } as SenseSettings,
     deskSinceMs: Date.now(),
     paletteOpen: false,
+    blueprints: [{ ...translate('in-hawk', 'Hawk vision', 'A detector organised like a hawk\u2019s vision: a cheap periphery steering two expensive foveae, motion first, trained on own capture.', 'local'), id: 'bp-in-hawk', createdAt: ago(120) }],
+    connections: seedConnections.map((c) => ({ ...c })),
+    datasets: seedDatasets.map((d) => ({ ...d })),
+    experiments: seedExperiments.map((e) => ({ ...e, metrics: e.metrics.map((m) => ({ ...m })) })),
+    docs: seedDocs.map((d) => ({ ...d })),
+    sheets: [
+      {
+        id: 'sh-hawk-cost',
+        initiativeId: 'in-hawk',
+        title: 'Hawk vision — cost and time',
+        columns: ['Line', 'Hours', 'Cost ($)'],
+        numeric: [false, true, true],
+        rows: [
+          ['Field capture (2 days, travel)', 16, 380],
+          ['Labelling tool licence', 2, 0],
+          ['GPU time (local, electricity)', 0, 60],
+          ['Pretrained weights', 1, 0],
+          ['Reading and translation', 8, 0],
+          ['Implementation and runs', 40, 0],
+          ['Model card, record, repo', 6, 0],
+        ],
+        createdAt: ago(110),
+        updatedAt: ago(20),
+      },
+    ] as Sheet[],
+    routines: translate('in-hawk', 'Hawk vision', 'model', 'local').routine.map((r, i) => ({ ...r, id: `rt-hawk-${i}`, initiativeId: 'in-hawk' })),
+    lastSeenAt: ago(14),
   }
 }
 
@@ -637,6 +716,28 @@ export const useOS = create<OSState>()(
           return r
         })
         if (changed) set({ runs })
+
+        // The lab. One epoch per tick; one experiment at a time, like a single GPU.
+        const exps = get().experiments
+        const running = exps.find((e) => e.status === 'running')
+        if (running) {
+          const m = nextEpoch(running)
+          const done = m.epoch >= running.epochs
+          const updated = { ...running, metrics: [...running.metrics, m], status: done ? ('done' as const) : ('running' as const), finishedAt: done ? nowIso() : undefined }
+          set({ experiments: exps.map((e) => (e.id === running.id ? updated : e)) })
+          if (done) {
+            const best = [...updated.metrics].sort((a, b) => b.metric - a.metric)[0]
+            set({
+              inbox: [
+                { id: uid('ib'), kind: 'report', from: { name: 'Planner', agentId: 'ag-planner', importance: 2 }, subject: `Finished: ${updated.name} — best ${updated.metricName} ${best.metric.toFixed(3)}`, body: `${updated.hypothesis} Best epoch ${best.epoch}: ${updated.metricName} ${best.metric.toFixed(3)}, val loss ${best.valLoss.toFixed(3)}. Curves are in the lab. Promote it or run the next one.`, urgent: false, at: nowIso(), read: false, done: false, scope: 'personal' },
+                ...get().inbox,
+              ],
+            })
+          }
+        } else {
+          const queued = exps.find((e) => e.status === 'queued')
+          if (queued) set({ experiments: exps.map((e) => (e.id === queued.id ? { ...e, status: 'running' } : e)) })
+        }
       },
 
       markRead: (id) => set((s) => ({ inbox: s.inbox.map((i) => (i.id === id ? { ...i, read: true } : i)) })),
@@ -861,6 +962,47 @@ export const useOS = create<OSState>()(
               text = `${runIds.length} orders prepared into the sleeve (${money(budget)} total), waiting for review.`
             }
           }
+        } else if (kind === 'translate') {
+          const bpId = get().translateInitiative(it.id)
+          const bp = get().blueprints.find((b) => b.id === bpId)
+          text = bp ? `Blueprint: ${bp.milestones.length} milestones, ${bp.pieces.length} pieces, ${bp.connections.length} connections, a routine of ${bp.routine.length} blocks a week. About ${bp.hours} focused hours.` : 'Could not translate.'
+        } else if (kind === 'connect') {
+          const bp = get().blueprints.find((b) => b.initiativeId === it.id)
+          const need = (bp?.connections ?? []).map((cid) => get().connections.find((c) => c.id === cid)).filter(Boolean) as Connection[]
+          const missing = need.filter((c) => c.status !== 'ready')
+          set({
+            inbox: [
+              { id: uid('ib'), kind: 'system', from: { name: 'Horizon', agentId: 'ag-horizon', importance: 2 }, subject: `Connections for ${it.title}: ${need.length - missing.length} of ${need.length} ready`, body: missing.length ? `Still to set up: ${missing.map((c) => c.name).join(', ')}. Each is under Connections; internet ones are transactional.` : 'Everything the blueprint needs is ready.', urgent: false, at, read: false, done: false, scope: 'personal' },
+              ...get().inbox,
+            ],
+          })
+          text = `${need.length - missing.length} of ${need.length} connections ready.${missing.length ? ` To set up: ${missing.map((c) => c.name).join(', ')}.` : ''}`
+        } else if (kind === 'gather') {
+          const docId = get().saveDoc({ initiativeId: it.id, title: `${it.title}: research notes`, kind: 'research', body: `# Sources\n(Paper search and the PDF reader fill this in.)\n\n# What the principle does\n\n# What it is for\n\n# The translation\n` })
+          const dsId = get().addDataset({ initiativeId: it.id, name: `${it.title}: first capture`, path: `/data/${it.id}/capture`, items: 0, sizeMb: 0, provenance: 'Own capture — to be recorded.', labelled: false })
+          patch.docIds = [...(it.docIds ?? []), docId]
+          text = `A research doc and an empty dataset (${dsId.slice(0, 6)}…) registered in the lab. Fill them.`
+        } else if (kind === 'experiment') {
+          const ds = get().datasets.find((d) => d.initiativeId === it.id) ?? get().datasets[0]
+          const base = get().startExperiment({ initiativeId: it.id, name: `Baseline for ${it.title}`, hypothesis: 'The conventional approach on the same data. This is the bar.', datasetId: ds?.id ?? '', config: { epochs: 12, floor: 0.42, ceiling: 0.55 }, epochs: 12, metricName: 'score', device: 'local gpu' })
+          const idea = get().startExperiment({ initiativeId: it.id, name: `The idea: ${it.title}`, hypothesis: it.spark.slice(0, 160), datasetId: ds?.id ?? '', config: { epochs: 16, floor: 0.3, ceiling: 0.7 }, epochs: 16, metricName: 'score', device: 'local gpu' })
+          patch.experimentIds = [...(it.experimentIds ?? []), base, idea]
+          text = 'Two experiments queued in the lab: the baseline, then the idea. The scheduler runs them; curves arrive as they train.'
+        } else if (kind === 'evaluate') {
+          const exps = get().experiments.filter((e) => (it.experimentIds ?? []).includes(e.id))
+          const best = exps.map((e) => ({ e, m: [...e.metrics].sort((a, b) => b.metric - a.metric)[0] })).filter((x) => x.m)
+          const body = best.length ? best.map((x) => `${x.e.name}: best ${x.e.metricName} ${x.m.metric.toFixed(3)} at epoch ${x.m.epoch}`).join('. ') + '.' : 'No finished experiments yet.'
+          const runId = get().createRun('ag-planner', `Evaluate ${it.title}`, 'The number on the sealed set against the threshold chosen before training.', { kind: 'report', title: `Evaluation: ${it.title}`, body })
+          const pieceId = get().addPiece({ title: `Decide: did ${it.title} clear the number?`, detail: body, weight: 2, dependsOn: [] })
+          patch.runIds = [...it.runIds, runId]
+          patch.pieceIds = [...it.pieceIds, pieceId]
+          text = `Evaluation report queued for review. ${body}`
+        } else if (kind === 'protect') {
+          const hash = Array.from(it.title + it.spark + at).reduce((a, c) => ((a << 5) - a + c.charCodeAt(0)) | 0, 0).toString(16).replace('-', '')
+          const docId = get().saveDoc({ initiativeId: it.id, title: `Invention record: ${it.title}`, kind: 'disclosure', body: `# Invention record\nTitle: ${it.title}\nRecorded: ${at}\nHash: ${hash}\n\n# What was made\n${it.spark}\n\n# Evidence\nBlueprint, experiments and docs attached to this initiative at the time of recording.\n\n# Ownership\nMade on personal equipment, personal time, personal scope. No company connection was used.` })
+          const card = get().saveDoc({ initiativeId: it.id, title: `Model card: ${it.title}`, kind: 'model-card', body: `# ${it.title}\n\n# What it is\n\n# Trained on\n\n# Evaluated on\n\n# Not for\n` })
+          patch.docIds = [...(it.docIds ?? []), docId, card]
+          text = `Invention record written and hashed (${hash}). Model card drafted. Repo stays private.`
         } else if (kind === 'launch') {
           const goalId = patch.goalId ?? it.goalId
           const runIds = [
@@ -908,7 +1050,9 @@ export const useOS = create<OSState>()(
         const s = get()
         const day = todayKey()
         if (s.blocks.some((b) => b.day === day && !b.initiativeId)) return
-        set({ blocks: [...s.blocks.filter((b) => b.day >= day), ...planDay(s.pieces, inboxScore(s.inbox), day)] })
+        const weekday = new Date().getDay()
+        const routine: TimeBlock[] = s.routines.filter((r) => r.weekdays.includes(weekday)).map((r) => ({ id: `blk-${day}-${r.id}`, day, start: r.start, minutes: r.minutes, title: r.title, kind: r.kind, initiativeId: r.initiativeId }))
+        set({ blocks: [...s.blocks.filter((b) => b.day >= day), ...routine, ...planDay(s.pieces, inboxScore(s.inbox), day)] })
       },
       toggleBlock: (id) => set((s) => ({ blocks: s.blocks.map((b) => (b.id === id ? { ...b, done: !b.done } : b)) })),
       refreshNudges: () => {
@@ -926,6 +1070,66 @@ export const useOS = create<OSState>()(
         sim.setMode('rest')
         useHorizon.getState().addNote('Went for a walk', 'Logged from a nudge. Desk timer reset.')
       },
+
+      translateInitiative: (id) => {
+        const s = get()
+        const it = s.initiatives.find((x) => x.id === id)
+        if (!it) return undefined
+        const bp = translate(it.id, it.title, it.spark, s.useRuntime ? 'runtime' : 'local')
+        // Pieces onto the journey with their dependencies, milestones as prefixes.
+        const idByTitle = new Map<string, string>()
+        for (const piece of bp.pieces) {
+          const deps = piece.after.map((t) => idByTitle.get(t)).filter((x): x is string => !!x)
+          const pid = get().addPiece({ title: piece.title, detail: `${piece.detail} (${piece.milestone}, about ${piece.size === 'hour' ? 'an hour' : 'a ' + piece.size}.)`, weight: piece.weight, dependsOn: deps, agentId: piece.agentId, goalId: it.goalId })
+          idByTitle.set(piece.title, pid)
+        }
+        const routines = bp.routine.map((r, i) => ({ ...r, id: `rt-${it.id}-${i}`, initiativeId: it.id }))
+        set({
+          blueprints: [...get().blueprints.filter((b) => b.initiativeId !== it.id), bp],
+          routines: [...get().routines.filter((r) => r.initiativeId !== it.id), ...routines],
+          initiatives: get().initiatives.map((x) => (x.id === id ? { ...x, blueprintId: bp.id, pieceIds: [...x.pieceIds, ...idByTitle.values()] } : x)),
+        })
+        return bp.id
+      },
+      setConnectionStatus: (id, status) => set((s) => ({ connections: s.connections.map((c) => (c.id === id ? { ...c, status } : c)) })),
+      startExperiment: (input) => {
+        const id = uid('ex')
+        set((s) => ({ experiments: [{ ...input, id, status: 'queued', metrics: [], createdAt: nowIso() }, ...s.experiments] }))
+        return id
+      },
+      promoteExperiment: (id) => {
+        const e = get().experiments.find((x) => x.id === id)
+        if (!e) return
+        set((s) => ({ experiments: s.experiments.map((x) => (x.id === id ? { ...x, status: 'promoted' } : x)) }))
+        useHorizon.getState().addNote(`Promoted: ${e.name}`, `Best ${e.metricName} ${[...e.metrics].sort((a, b) => b.metric - a.metric)[0]?.metric ?? '—'}. This is the model now.`)
+      },
+      addDataset: (d) => {
+        const id = uid('ds')
+        set((s) => ({ datasets: [...s.datasets, { ...d, id }] }))
+        return id
+      },
+      saveDoc: (doc) => {
+        const at = nowIso()
+        const id = doc.id ?? uid('doc')
+        set((s) => {
+          const existing = s.docs.find((d) => d.id === id)
+          const next: Doc = existing ? { ...existing, ...doc, id, updatedAt: at } : { id, initiativeId: doc.initiativeId, title: doc.title, body: doc.body, kind: doc.kind ?? 'note', createdAt: at, updatedAt: at }
+          return { docs: existing ? s.docs.map((d) => (d.id === id ? next : d)) : [next, ...s.docs] }
+        })
+        return id
+      },
+      deleteDoc: (id) => set((s) => ({ docs: s.docs.filter((d) => d.id !== id) })),
+      saveSheet: (sheet) => {
+        const at = nowIso()
+        const id = sheet.id ?? uid('sh')
+        set((s) => {
+          const existing = s.sheets.find((x) => x.id === id)
+          const next: Sheet = existing ? { ...existing, ...sheet, id, updatedAt: at } : { id, initiativeId: sheet.initiativeId, title: sheet.title, columns: sheet.columns, numeric: sheet.numeric, rows: sheet.rows, createdAt: at, updatedAt: at }
+          return { sheets: existing ? s.sheets.map((x) => (x.id === id ? next : x)) : [next, ...s.sheets] }
+        })
+        return id
+      },
+      markSeen: () => set({ lastSeenAt: nowIso() }),
 
       setWidgets: (ids) => set({ widgets: ids }),
       setSenses: (patch) => set((s) => ({ senses: { ...s.senses, ...patch } })),

@@ -22,6 +22,12 @@ export type StageKind =
   | 'calendar'
   | 'monitor'
   | 'decide'
+  | 'translate'
+  | 'connect'
+  | 'gather'
+  | 'experiment'
+  | 'evaluate'
+  | 'protect'
 
 export interface StageKindMeta {
   kind: StageKind
@@ -50,6 +56,12 @@ export const STAGE_KINDS: StageKindMeta[] = [
   { kind: 'calendar', label: 'Time', does: 'Puts the first sessions on the day.', produces: 'Blocks on today and tomorrow.' },
   { kind: 'monitor', label: 'Monitor', does: 'Runs report to the Desk; confidence, drift and exit rules stay live.', produces: 'A standing watch.', agentId: 'ag-desk' },
   { kind: 'decide', label: 'Decide', does: 'Continue, change, or stop — written down with the reason.', produces: 'A decision in the journal.' },
+  { kind: 'translate', label: 'Translate', does: 'The ribosome: the fully formed idea becomes milestones, bite-sized pieces, the connections each needs, and a routine.', produces: 'A blueprint; pieces on the journey; a routine on the week.', agentId: 'ag-planner' },
+  { kind: 'connect', label: 'Connect', does: 'Checks every connection the blueprint needs and lists what still has to be set up.', produces: 'A connections checklist on the Desk.', agentId: 'ag-horizon' },
+  { kind: 'gather', label: 'Gather', does: 'Datasets registered, papers read, notes written.', produces: 'Datasets in the lab; research docs.', agentId: 'ag-scribe' },
+  { kind: 'experiment', label: 'Experiment', does: 'A baseline and the idea, trained on the same data, tracked.', produces: 'Experiments running in the lab.', agentId: 'ag-planner' },
+  { kind: 'evaluate', label: 'Evaluate', does: 'The number, on the sealed set, against the threshold chosen before training.', produces: 'A report on the Desk and a decision piece.', agentId: 'ag-planner', gated: true },
+  { kind: 'protect', label: 'Protect', does: 'Model card, invention record, private reproducible repo.', produces: 'A disclosure doc, hashed and timestamped.', agentId: 'ag-scribe' },
 ]
 
 export const stageMeta = (kind: StageKind) => STAGE_KINDS.find((k) => k.kind === kind)!
@@ -74,6 +86,14 @@ export interface Workflow {
 const st = (kind: StageKind, label?: string): WorkflowStage => ({ id: kind, kind, label })
 
 export const BUILTIN_WORKFLOWS: Workflow[] = [
+  {
+    id: 'wf-invention',
+    name: 'Idea → Invention',
+    blurb: 'A fully formed idea — a model, a device, a method — translated into bite-sized work, built on your own data and machine, evaluated against a number you chose first, and owned.',
+    outcome: 'A working thing you invented, reproducible from one command, with a model card and an invention record that says it is yours.',
+    builtin: true,
+    stages: [st('spark'), st('translate'), st('connect'), st('gather'), st('experiment'), st('evaluate'), st('protect'), st('decide')],
+  },
   {
     id: 'wf-product',
     name: 'Idea → Product',

@@ -200,7 +200,52 @@ function MoneyWidget() {
   )
 }
 
+function AwayWidget() {
+  const lastSeenAt = useOS((s) => s.lastSeenAt)
+  const runs = useOS((s) => s.runs)
+  const inbox = useOS((s) => s.inbox)
+  const experiments = useOS((s) => s.experiments)
+  const since = Date.parse(lastSeenAt)
+  const doneRuns = runs.filter((r) => r.status === 'done' && Date.parse(r.updatedAt) > since)
+  const waiting = runs.filter((r) => r.status === 'awaiting_review')
+  const arrived = inbox.filter((i) => Date.parse(i.at) > since && !i.done)
+  const finished = experiments.filter((e) => e.finishedAt && Date.parse(e.finishedAt) > since)
+  const running = experiments.find((e) => e.status === 'running')
+  return (
+    <div className="stack stack-sm">
+      <div className="row row-between"><span className="label">Since you were away</span><span className="meta">{new Date(lastSeenAt).toLocaleString('en-GB', { weekday: 'short', hour: '2-digit', minute: '2-digit' })}</span></div>
+      <ul className="stack stack-xs" style={{ margin: 0, padding: 0, listStyle: 'none', fontSize: 14 }}>
+        <li><span className="num">{doneRuns.length}</span> run{doneRuns.length === 1 ? '' : 's'} finished{doneRuns[0] ? ` — latest: ${doneRuns[0].title}` : ''}</li>
+        <li><span className="num">{waiting.length}</span> waiting for your review</li>
+        <li><span className="num">{arrived.length}</span> arrived on the Desk</li>
+        <li><span className="num">{finished.length}</span> experiment{finished.length === 1 ? '' : 's'} finished{running ? ` · ${running.name} at epoch ${running.metrics.length}/${running.epochs}` : ''}</li>
+      </ul>
+      <div className="row" style={{ gap: 6 }}>
+        <Link to="/agents" className="btn btn-sm">Review runs</Link>
+        <Link to="/lab" className="btn btn-sm btn-ghost">Lab</Link>
+      </div>
+    </div>
+  )
+}
+
+function LabWidget() {
+  const experiments = useOS((s) => s.experiments)
+  const e = experiments.find((x) => x.status === 'running') ?? experiments[0]
+  if (!e) return <p className="meta" style={{ margin: 0 }}>No experiments.</p>
+  const last = e.metrics.at(-1)
+  return (
+    <div className="stack stack-sm">
+      <div className="row row-between"><span className="label">Lab</span><Link to="/lab" className="link-button" style={{ fontSize: 12.5 }}>Open</Link></div>
+      <div style={{ fontWeight: 500, fontSize: 14 }}>{e.name}</div>
+      <div className="progress" style={{ height: 4 }}><div className="progress-fill" style={{ width: `${(e.metrics.length / e.epochs) * 100}%` }} /></div>
+      <span className="meta">{e.status} · epoch {e.metrics.length}/{e.epochs}{last ? ` · val loss ${last.valLoss.toFixed(3)} · ${e.metricName} ${last.metric.toFixed(3)}` : ''}</span>
+    </div>
+  )
+}
+
 export const WIDGETS: WidgetDef[] = [
+  { id: 'away', label: 'Since you were away', blurb: 'What the agents and the lab did while you were not looking.', span: 1, Component: AwayWidget },
+  { id: 'lab', label: 'Lab', blurb: 'The experiment training right now.', span: 1, Component: LabWidget },
   { id: 'inbox', label: 'Inbox', blurb: 'Everything that arrived, with the score.', span: 2, Component: () => null },
   { id: 'piece', label: 'Nearest piece', blurb: 'The one thing to do next.', span: 1, Component: PieceWidget },
   { id: 'day', label: 'Today', blurb: 'Time blocks from the journey and the body.', span: 1, Component: DayWidget },
