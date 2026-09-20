@@ -11,6 +11,8 @@ const KIND_LABEL: Record<ReviewKind, string> = {
   flag: 'Flag',
   rebalance: 'Rebalance',
   'review-thesis': 'Re-read',
+  goal: 'Goal',
+  values: 'Values',
 }
 
 export default function ReviewQueueScreen() {
@@ -54,7 +56,7 @@ export default function ReviewQueueScreen() {
         <EmptyState title={tab === 'pending' ? 'Nothing is waiting on you' : `Nothing ${tab} yet`}>
           {tab === 'pending' ? (
             <>
-              Re-mark a passage as contradicting on the <Link to="/map">map</Link> and watch confidence fall
+              Re-mark a passage as contradicting on the <Link to="/beliefs">map</Link> and watch confidence fall
               through the branch above it. If it takes a pillar past a sleeve's exit rule, an item appears
               here.
             </>
@@ -157,7 +159,12 @@ function ReviewCard({ item }: { item: ReviewItem }) {
 }
 
 function ChainRow({ link }: { link: ChainLink }) {
-  const cls = link.kind === 'evidence' ? 'is-evidence' : link.kind === 'rule' || link.kind === 'sleeve' ? 'is-rule' : ''
+  const cls =
+    link.kind === 'evidence' || link.kind === 'value'
+      ? 'is-evidence'
+      : link.kind === 'rule' || link.kind === 'sleeve' || link.kind === 'goal' || link.kind === 'habit'
+        ? 'is-rule'
+        : ''
   const body = (
     <>
       <div className="row row-wrap" style={{ gap: 8, alignItems: 'baseline' }}>
@@ -172,11 +179,19 @@ function ChainRow({ link }: { link: ChainLink }) {
   return (
     <li className={cls}>
       {link.nodeId ? (
-        <Link to={`/thesis/${link.nodeId}`} style={{ color: 'inherit', textDecoration: 'none' }}>
+        <Link to={`/beliefs/${link.nodeId}`} style={{ color: 'inherit', textDecoration: 'none' }}>
           {body}
         </Link>
       ) : link.evidenceId ? (
-        <Link to={`/evidence/${link.evidenceId}`} style={{ color: 'inherit', textDecoration: 'none' }}>
+        <Link to={`/beliefs/evidence/${link.evidenceId}`} style={{ color: 'inherit', textDecoration: 'none' }}>
+          {body}
+        </Link>
+      ) : link.goalId ? (
+        <Link to={`/goals/${link.goalId}`} style={{ color: 'inherit', textDecoration: 'none' }}>
+          {body}
+        </Link>
+      ) : link.sleeveId ? (
+        <Link to="/money" style={{ color: 'inherit', textDecoration: 'none' }}>
           {body}
         </Link>
       ) : (

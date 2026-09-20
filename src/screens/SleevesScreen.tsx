@@ -2,7 +2,8 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { confidenceColor } from '../lib/color'
 import type { Cadence } from '../lib/types'
-import { usePortfolio, type SleeveView } from '../store/derived'
+import { usePortfolio, useValuesView, type SleeveView } from '../store/derived'
+import { AlignPill } from './ValuesScreen'
 import { useHorizon } from '../store/useHorizon'
 import {
   ConfidenceBar,
@@ -27,10 +28,10 @@ export default function SleevesScreen() {
     <div className="page">
       <div className="page-head">
         <div className="page-head-text">
-          <h1>Sleeves</h1>
+          <h1>Allocation</h1>
           <p className="lede">
-            Each sleeve points money at one branch of the map and carries its own rules. Change a target and
-            the drift recalculates as you drag — nothing is sent anywhere.
+            Each sleeve points money at one branch of your beliefs and carries its own rules. Long-horizon goals
+            are funded from here. Change a target and the drift recalculates as you drag — nothing is sent anywhere.
           </p>
         </div>
       </div>
@@ -126,6 +127,7 @@ export default function SleevesScreen() {
 
 function SleeveCard({ view }: { view: SleeveView }) {
   const updateSleeve = useHorizon((s) => s.updateSleeve)
+  const values = useValuesView()
   const [editingRules, setEditingRules] = useState(false)
   const s = view.sleeve
   const over = view.driftPct > 0
@@ -138,7 +140,7 @@ function SleeveCard({ view }: { view: SleeveView }) {
           <h3>{s.name}</h3>
           <p className="meta" style={{ margin: 0 }}>
             Pointed at{' '}
-            <Link to={`/thesis/${s.rootId}`} style={{ color: 'var(--accent)' }}>
+            <Link to={`/beliefs/${s.rootId}`} style={{ color: 'var(--accent)' }}>
               {view.root?.label ?? s.rootId}
             </Link>{' '}
             · {view.companyCount} companies under that branch
@@ -174,7 +176,7 @@ function SleeveCard({ view }: { view: SleeveView }) {
         >
           <p className="prose-sm" style={{ margin: 0, color: 'var(--contradict)' }}>
             Branch confidence is under this sleeve's exit threshold. A flag is waiting in the{' '}
-            <Link to="/review" style={{ color: 'inherit' }}>
+            <Link to="/money/review" style={{ color: 'inherit' }}>
               review queue
             </Link>
             . Horizon will not act on it.
@@ -314,14 +316,15 @@ function SleeveCard({ view }: { view: SleeveView }) {
               <th className="right">Value</th>
               <th className="right">Of book</th>
               <th className="right">Of sleeve</th>
-              <th style={{ width: 150 }}>Confidence</th>
+              <th style={{ width: 150, paddingLeft: 16 }}>Confidence</th>
+              <th className="right">Values</th>
             </tr>
           </thead>
           <tbody>
             {view.positions.map((p) => (
               <tr key={p.companyId}>
                 <td>
-                  <Link to={`/thesis/${p.companyId}`} style={{ color: 'var(--ink)', textDecoration: 'none' }}>
+                  <Link to={`/beliefs/${p.companyId}`} style={{ color: 'var(--ink)', textDecoration: 'none' }}>
                     {p.node?.label ?? p.companyId}
                   </Link>{' '}
                   <span className="num meta">{p.node?.ticker}</span>
@@ -341,6 +344,9 @@ function SleeveCard({ view }: { view: SleeveView }) {
                       {p.confidence.toFixed(0)}
                     </span>
                   </div>
+                </td>
+                <td className="right">
+                  <AlignPill score={values.byCompany[p.companyId]?.score ?? null} />
                 </td>
               </tr>
             ))}

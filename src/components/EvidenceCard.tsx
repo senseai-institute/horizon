@@ -56,7 +56,7 @@ export default function EvidenceCard({
             {showTarget && target && (
               <div className="meta">
                 Speaks to{' '}
-                <Link to={`/thesis/${target.id}`} style={{ color: 'var(--accent)' }}>
+                <Link to={`/beliefs/${target.id}`} style={{ color: 'var(--accent)' }}>
                   {target.label}
                 </Link>
               </div>
@@ -70,7 +70,7 @@ export default function EvidenceCard({
                 setStance(evidence.id, stance)
                 toast({
                   text: `Re-marked as ${stanceWord(stance)}. Confidence has been recomputed up the whole branch.`,
-                  to: '/review',
+                  to: '/money/review',
                   actionLabel: 'Open review queue',
                 })
               }}
@@ -111,7 +111,7 @@ export default function EvidenceCard({
             <button type="button" className="link-button" style={{ fontSize: 13 }} onClick={() => setOpen((o) => !o)}>
               {open ? 'Less' : 'Note & source'}
             </button>
-            <Link to={`/evidence/${evidence.id}`} className="link-button" style={{ fontSize: 13 }}>
+            <Link to={`/beliefs/evidence/${evidence.id}`} className="link-button" style={{ fontSize: 13 }}>
               Open passage
             </Link>
           </div>

@@ -2,7 +2,9 @@ import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { confidenceColor } from '../lib/color'
 import type { GraphNode } from '../lib/types'
-import { useEvidenceFor, useGraph } from '../store/derived'
+import { useEvidenceFor, useGraph, useValuesView } from '../store/derived'
+import { AlignPill } from '../screens/ValuesScreen'
+import { alignmentWord } from '../lib/goals'
 import { useHorizon } from '../store/useHorizon'
 import AddEvidenceForm from './AddEvidenceForm'
 import ConfidenceBreakdown from './ConfidenceBreakdown'
@@ -30,6 +32,11 @@ export default function NodeDetail({ node, compact = false }: { node: GraphNode;
   const archiveNode = useHorizon((s) => s.archiveNode)
   const restoreNode = useHorizon((s) => s.restoreNode)
   const setEdgeWeight = useHorizon((s) => s.setEdgeWeight)
+  const willNotHold = useHorizon((s) => s.willNotHold)
+  const toggleWillNotHold = useHorizon((s) => s.toggleWillNotHold)
+  const valuesView = useValuesView()
+  const alignment = node.kind === 'company' ? valuesView.byCompany[node.id] : undefined
+  const banned = willNotHold.includes(node.id)
 
   const [editing, setEditing] = useState(false)
   const [adding, setAdding] = useState(false)
@@ -225,6 +232,54 @@ export default function NodeDetail({ node, compact = false }: { node: GraphNode;
         </section>
       )}
 
+      {/* ---------- values ---------- */}
+      {node.kind === 'company' && alignment && (
+        <section className="stack stack-sm">
+          <SectionHead
+            title="Against your values"
+            aside={
+              <button type="button" className={`btn btn-sm${banned ? '' : ' btn-ghost'}`} onClick={() => toggleWillNotHold(node.id)}>
+                {banned ? 'Will not hold — undo' : 'Mark: will not hold'}
+              </button>
+            }
+          />
+          <div className="row" style={{ gap: 12, alignItems: 'baseline' }}>
+            <AlignPill score={alignment.score} />
+            <span className="meta">{alignmentWord(alignment.score)}</span>
+            {alignment.hardConflict && !banned && <span className="chip chip-contradict">works against a core value</span>}
+            {banned && <span className="chip">will not hold</span>}
+          </div>
+          {(node.values ?? []).length === 0 ? (
+            <p className="meta" style={{ margin: 0 }}>
+              Not scored yet.
+            </p>
+          ) : (
+            <ul className="stack stack-xs" style={{ margin: 0, padding: 0, listStyle: 'none' }}>
+              {[...alignment.advances, ...alignment.conflicts].map((row) => (
+                <li key={row.value.id} className="row" style={{ gap: 10, alignItems: 'baseline', fontSize: 14 }}>
+                  <span className="num" style={{ width: 24, color: row.score > 0 ? 'var(--support)' : 'var(--contradict)' }}>
+                    {row.score > 0 ? '+' : ''}
+                    {row.score}
+                  </span>
+                  <span style={{ fontWeight: 500 }}>{row.value.label}</span>
+                  <span className="meta">{row.reason}</span>
+                </li>
+              ))}
+              {(node.values ?? [])
+                .filter((v) => !(valuesView.weights[v.valueId] ?? 0))
+                .map((v) => (
+                  <li key={v.valueId} className="meta" style={{ fontSize: 13 }}>
+                    Also scored on a value you have not weighted: {v.reason}
+                  </li>
+                ))}
+            </ul>
+          )}
+          <p className="meta" style={{ margin: 0 }}>
+            Change what counts on the <Link to="/values">values screen</Link>.
+          </p>
+        </section>
+      )}
+
       {/* ---------- relations ---------- */}
       <section className="stack stack-md">
         <SectionHead title="Where it sits" />
@@ -240,7 +295,7 @@ export default function NodeDetail({ node, compact = false }: { node: GraphNode;
                 parent ? (
                   <div key={edge.id} className="card-quiet stack stack-xs" style={{ padding: '14px 16px' }}>
                     <div className="row row-between">
-                      <Link to={`/thesis/${parent.id}`} style={{ color: 'var(--ink)', fontWeight: 500 }}>
+                      <Link to={`/beliefs/${parent.id}`} style={{ color: 'var(--ink)', fontWeight: 500 }}>
                         {parent.label}
                       </Link>
                       <span className="num meta" style={{ color: confidenceColor(confidence[parent.id] ?? 50) }}>
@@ -283,7 +338,7 @@ export default function NodeDetail({ node, compact = false }: { node: GraphNode;
                     child ? (
                       <tr key={edge.id}>
                         <td>
-                          <Link to={`/thesis/${child.id}`} style={{ color: 'var(--ink)', textDecoration: 'none' }}>
+                          <Link to={`/beliefs/${child.id}`} style={{ color: 'var(--ink)', textDecoration: 'none' }}>
                             {child.label}
                           </Link>
                           {child.ticker && <span className="num meta"> {child.ticker}</span>}

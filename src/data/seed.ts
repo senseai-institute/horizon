@@ -11,11 +11,16 @@
 import type {
   DiscoverySeed,
   Evidence,
+  Goal,
   GraphEdge,
   GraphNode,
+  Habit,
   JournalEntry,
   ReviewItem,
   Sleeve,
+  ValueDef,
+  ValueStance,
+  ValueWeight,
 } from '../lib/types'
 
 const edgar = (ticker: string, form: string) =>
@@ -1217,6 +1222,374 @@ export const seedReviewItems: ReviewItem[] = [
       { kind: 'evidence', label: 'Assignment revenues declined year over year', detail: 'ASGN 10-K, Item 7. Marked contradicting at strength three.', evidenceId: 'ev-asgn-1', delta: -14 },
       { kind: 'company', label: 'ASGN Incorporated', detail: 'Confidence 36. Below anything else considered for a sleeve.', nodeId: 'co-asgn' },
       { kind: 'rule', label: 'Minimum market cap $2.0bn', detail: 'Passes the rule, but fails on confidence.', sleeveId: 'sl-rails' },
+    ],
+  },
+]
+
+/* ------------------------------------------------------------------ */
+/* Values — what a reader can decide to care about.                    */
+/* ------------------------------------------------------------------ */
+
+export const seedValues: ValueDef[] = [
+  { id: 'v-climate', label: 'Climate & clean energy', blurb: 'Speeds the move off fossil fuels, or at least does not slow it.' },
+  { id: 'v-workers', label: 'Fair work', blurb: 'How the people doing the work are paid, classified and treated.' },
+  { id: 'v-privacy', label: 'Privacy', blurb: 'Does not depend on knowing more about people than it needs to.' },
+  { id: 'v-local', label: 'Local & independent business', blurb: 'Leaves small operators stronger rather than squeezed.' },
+  { id: 'v-animals', label: 'Animal welfare', blurb: 'Treats animals as more than inventory.' },
+  { id: 'v-health', label: 'Health & wellbeing', blurb: 'Makes people healthier, or at least does not profit from making them less so.' },
+  { id: 'v-openness', label: 'Open knowledge & repair', blurb: 'Lets people understand, fix and keep what they own.' },
+  { id: 'v-fairness', label: 'Financial fairness', blurb: 'Does not make its money from people at their worst moments.' },
+]
+
+/**
+ * Where each company stands. These are one reader's judgements written for the
+ * prototype — illustrative, not research. −2 works against, +2 clearly advances.
+ */
+const companyValues: Record<string, ValueStance[]> = {
+  'co-dash': [
+    { valueId: 'v-workers', score: -2, reason: 'Couriers are independent contractors without the protections employees get.' },
+    { valueId: 'v-local', score: -1, reason: 'Restaurants pay large commissions for demand they used to own.' },
+    { valueId: 'v-health', score: -1, reason: 'Makes it easier to eat badly and harder to cook.' },
+  ],
+  'co-uber': [
+    { valueId: 'v-workers', score: -2, reason: 'The contractor model is the business model.' },
+    { valueId: 'v-privacy', score: -1, reason: 'Holds detailed location history on riders and drivers.' },
+    { valueId: 'v-climate', score: 1, reason: 'Fewer privately owned cars in dense cities, on balance.' },
+  ],
+  'co-cmg': [
+    { valueId: 'v-health', score: 1, reason: 'Whole ingredients, cooked in the restaurant.' },
+    { valueId: 'v-workers', score: 1, reason: 'Hourly staff, internal promotion, above-minimum pay.' },
+    { valueId: 'v-animals', score: 0, reason: 'Publishes sourcing standards, but they are voluntary.' },
+  ],
+  'co-wing': [
+    { valueId: 'v-health', score: -1, reason: 'Fried chicken, delivered.' },
+    { valueId: 'v-local', score: 1, reason: 'Franchised — most units are owned by small operators.' },
+  ],
+  'co-angi': [
+    { valueId: 'v-local', score: 1, reason: 'Sends work to independent tradespeople, though at a price.' },
+    { valueId: 'v-workers', score: -1, reason: 'Pros pay for leads whether or not they convert.' },
+  ],
+  'co-hd': [
+    { valueId: 'v-openness', score: 2, reason: 'Sells the parts and tools that let people fix their own homes.' },
+    { valueId: 'v-workers', score: 0, reason: 'Ordinary retail employer; nothing notable either way.' },
+    { valueId: 'v-local', score: -1, reason: 'Has replaced most independent hardware stores.' },
+  ],
+  'co-rol': [
+    { valueId: 'v-health', score: 1, reason: 'Pest control is public health work.' },
+    { valueId: 'v-animals', score: -1, reason: 'The service is killing animals.' },
+    { valueId: 'v-workers', score: 1, reason: 'Route technicians are employees with benefits.' },
+  ],
+  'co-tt': [
+    { valueId: 'v-climate', score: 2, reason: 'Heat pumps and efficient HVAC are a large share of the decarbonisation job.' },
+    { valueId: 'v-openness', score: 1, reason: 'Publishes service manuals; installers can repair.' },
+  ],
+  'co-chwy': [
+    { valueId: 'v-animals', score: 1, reason: 'Cheaper pharmacy and care for animals people already own.' },
+    { valueId: 'v-local', score: -1, reason: 'Competes directly with independent pet shops.' },
+  ],
+  'co-idxx': [
+    { valueId: 'v-animals', score: 2, reason: 'Earlier diagnosis means less suffering.' },
+    { valueId: 'v-openness', score: -1, reason: 'Closed consumable ecosystem; clinics are locked in.' },
+  ],
+  'co-trup': [
+    { valueId: 'v-animals', score: 2, reason: 'Insurance is what lets people say yes to treatment.' },
+    { valueId: 'v-fairness', score: 1, reason: 'Pays vets directly; no claim-chasing for the owner.' },
+  ],
+  'co-etn': [
+    { valueId: 'v-climate', score: 1, reason: 'Grid equipment is needed whatever the generation is, and increasingly for renewables.' },
+    { valueId: 'v-workers', score: 1, reason: 'Unionised manufacturing footprint.' },
+  ],
+  'co-hubb': [
+    { valueId: 'v-climate', score: 1, reason: 'Transformers and protection equipment for a grid that has to electrify.' },
+  ],
+  'co-pwr': [
+    { valueId: 'v-climate', score: 2, reason: 'Builds the transmission that renewables cannot reach the grid without.' },
+    { valueId: 'v-workers', score: 2, reason: 'Runs its own apprenticeship programmes for skilled trades.' },
+  ],
+  'co-nvt': [
+    { valueId: 'v-climate', score: 1, reason: 'Liquid cooling cuts data-centre energy use.' },
+  ],
+  'co-gev': [
+    { valueId: 'v-climate', score: 0, reason: 'Wind turbines and grid on one side, gas turbines on the other.' },
+    { valueId: 'v-workers', score: 1, reason: 'Large unionised industrial workforce.' },
+  ],
+  'co-vst': [
+    { valueId: 'v-climate', score: 0, reason: 'Nuclear fleet is carbon-free; the gas and coal fleet is not.' },
+    { valueId: 'v-fairness', score: -1, reason: 'Retail electricity pricing has drawn regulatory complaints.' },
+  ],
+  'co-ceg': [
+    { valueId: 'v-climate', score: 2, reason: 'Largest carbon-free generator in the country.' },
+  ],
+  'co-nrg': [
+    { valueId: 'v-climate', score: -1, reason: 'Gas and coal are most of the fleet.' },
+    { valueId: 'v-fairness', score: -1, reason: 'Variable-rate retail plans have hurt customers in price spikes.' },
+  ],
+  'co-eqix': [
+    { valueId: 'v-climate', score: 1, reason: 'Contracts for renewable power at most sites.' },
+    { valueId: 'v-privacy', score: 0, reason: 'Landlord to everyone; neutral on what tenants do.' },
+  ],
+  'co-dlr': [
+    { valueId: 'v-climate', score: 0, reason: 'Enormous power draw, partly offset by renewable contracts.' },
+  ],
+  'co-tost': [
+    { valueId: 'v-local', score: 2, reason: 'Software that helps independent restaurants run like chains.' },
+    { valueId: 'v-workers', score: 1, reason: 'Tip pooling and payroll tools that get staff paid correctly.' },
+    { valueId: 'v-privacy', score: -1, reason: 'Collects diner data across every restaurant on the platform.' },
+  ],
+  'co-shop': [
+    { valueId: 'v-local', score: 2, reason: 'Built for independent merchants competing with marketplaces.' },
+    { valueId: 'v-privacy', score: -1, reason: 'Cross-merchant shopper profiles power its ads and checkout.' },
+  ],
+  'co-xyz': [
+    { valueId: 'v-local', score: 2, reason: 'Payments and lending for the smallest sellers.' },
+    { valueId: 'v-fairness', score: -1, reason: 'Consumer lending arm profits from short-term credit.' },
+    { valueId: 'v-privacy', score: -1, reason: 'A consumer wallet with a full picture of spending.' },
+  ],
+  'co-vrsk': [
+    { valueId: 'v-privacy', score: -2, reason: 'The product is a detailed profile of people and property, sold to insurers.' },
+    { valueId: 'v-fairness', score: -1, reason: 'Underwriting data decides who pays more.' },
+  ],
+  'co-asgn': [
+    { valueId: 'v-workers', score: 0, reason: 'Contract staffing: flexible for clients, precarious for contractors.' },
+  ],
+}
+
+for (const node of seedNodes) {
+  if (node.kind === 'company') node.values = companyValues[node.id] ?? []
+}
+
+/** What the example reader has said they care about. */
+export const seedValueWeights: Record<string, ValueWeight> = {
+  'v-climate': 2,
+  'v-workers': 1,
+  'v-privacy': 2,
+  'v-local': 1,
+  'v-animals': 0,
+  'v-health': 1,
+  'v-openness': 0,
+  'v-fairness': 1,
+}
+
+/* ------------------------------------------------------------------ */
+/* Goals — what the money is for.                                      */
+/* ------------------------------------------------------------------ */
+
+export const seedGoals: Goal[] = [
+  {
+    id: 'g-cushion',
+    title: 'Three months of breathing room',
+    why: 'So that a bad quarter is an inconvenience and not a crisis.',
+    horizon: 'now',
+    kind: 'save',
+    targetUsd: 18_000,
+    earmarkedUsd: 18_000,
+    monthlyUsd: 0,
+    linkedSleeveIds: [],
+    status: 'reached',
+    createdAt: '2025-10-12T09:00:00Z',
+    reachedAt: '2026-03-02T09:00:00Z',
+  },
+  {
+    id: 'g-card',
+    title: 'Clear the card',
+    why: 'Paying interest on last year is the most expensive thing in the budget.',
+    horizon: 'now',
+    kind: 'save',
+    targetUsd: 2_400,
+    earmarkedUsd: 1_900,
+    monthlyUsd: 500,
+    targetDate: '2026-10-31',
+    linkedSleeveIds: [],
+    status: 'active',
+    createdAt: '2026-07-01T09:00:00Z',
+  },
+  {
+    id: 'g-house',
+    title: 'House deposit',
+    why: 'Rent ends in April. Owning makes the next decade of housing a decision rather than a surprise.',
+    horizon: 'soon',
+    kind: 'save',
+    targetUsd: 120_000,
+    earmarkedUsd: 64_200,
+    monthlyUsd: 3_500,
+    targetDate: '2027-04-30',
+    linkedSleeveIds: [],
+    status: 'active',
+    createdAt: '2025-11-02T09:00:00Z',
+  },
+  {
+    id: 'g-toollib',
+    title: 'Ship the tool library',
+    why: 'A lending library for tools in the neighbourhood. Needs a year of runway to reach its first two hundred members.',
+    horizon: 'later',
+    kind: 'build',
+    targetUsd: 24_000,
+    earmarkedUsd: 6_500,
+    monthlyUsd: 600,
+    targetDate: '2028-03-31',
+    linkedSleeveIds: [],
+    status: 'active',
+    createdAt: '2026-01-18T09:00:00Z',
+  },
+  {
+    id: 'g-sabbatical',
+    title: 'Six weeks off',
+    why: 'Long enough to forget the shape of the week.',
+    horizon: 'later',
+    kind: 'save',
+    targetUsd: 15_000,
+    earmarkedUsd: 4_100,
+    monthlyUsd: 350,
+    targetDate: '2028-06-30',
+    linkedSleeveIds: [],
+    status: 'active',
+    createdAt: '2026-02-09T09:00:00Z',
+  },
+  {
+    id: 'g-scholarship',
+    title: 'A scholarship every year',
+    why: 'An endowment that pays one student’s way through a trade apprenticeship, every year, without me.',
+    horizon: 'someday',
+    kind: 'give',
+    targetUsd: 150_000,
+    earmarkedUsd: 12_000,
+    monthlyUsd: 400,
+    linkedSleeveIds: ['sl-rails'],
+    status: 'active',
+    createdAt: '2026-04-20T09:00:00Z',
+  },
+  {
+    id: 'g-independence',
+    title: 'Work because I want to',
+    why: 'The belief-driven sleeves are for this. When they cover the essentials, every job after that is a choice.',
+    horizon: 'someday',
+    kind: 'save',
+    targetUsd: 900_000,
+    earmarkedUsd: 0,
+    monthlyUsd: 1_800,
+    linkedSleeveIds: ['sl-outsourced', 'sl-grid'],
+    status: 'active',
+    createdAt: '2025-11-04T09:00:00Z',
+  },
+]
+
+/* ------------------------------------------------------------------ */
+/* Habits — spend less on this, and the difference goes there.         */
+/* ------------------------------------------------------------------ */
+
+export const seedHabits: Habit[] = [
+  {
+    id: 'h-weed',
+    title: 'Smoke less',
+    category: 'Cannabis',
+    baselineMonthlyUsd: 340,
+    targetMonthlyUsd: 150,
+    redirectToGoalId: 'g-house',
+    createdAt: '2026-03-01T09:00:00Z',
+    note: 'Not quitting. Just not every night.',
+    months: [
+      { month: '2026-03', spentUsd: 335 },
+      { month: '2026-04', spentUsd: 300 },
+      { month: '2026-05', spentUsd: 255 },
+      { month: '2026-06', spentUsd: 210 },
+      { month: '2026-07', spentUsd: 180 },
+      { month: '2026-08', spentUsd: 145 },
+      { month: '2026-09', spentUsd: 70 },
+    ],
+  },
+  {
+    id: 'h-delivery',
+    title: 'Fewer delivery dinners',
+    category: 'Food delivery',
+    baselineMonthlyUsd: 420,
+    targetMonthlyUsd: 250,
+    redirectToGoalId: 'g-sabbatical',
+    createdAt: '2026-04-01T09:00:00Z',
+    note: 'Ironic, given the food thesis. The thesis is about other people.',
+    months: [
+      { month: '2026-04', spentUsd: 390 },
+      { month: '2026-05', spentUsd: 310 },
+      { month: '2026-06', spentUsd: 330 },
+      { month: '2026-07', spentUsd: 240 },
+      { month: '2026-08', spentUsd: 265 },
+      { month: '2026-09', spentUsd: 110 },
+    ],
+  },
+  {
+    id: 'h-subs',
+    title: 'Cancel what I do not use',
+    category: 'Subscriptions',
+    baselineMonthlyUsd: 210,
+    targetMonthlyUsd: 120,
+    redirectToGoalId: 'g-toollib',
+    createdAt: '2026-06-01T09:00:00Z',
+    months: [
+      { month: '2026-06', spentUsd: 195 },
+      { month: '2026-07', spentUsd: 160 },
+      { month: '2026-08', spentUsd: 125 },
+      { month: '2026-09', spentUsd: 118 },
+    ],
+  },
+]
+
+/* Journal entries for the goals side of the notebook. */
+export const seedJournalGoals: JournalEntry[] = [
+  j('jg-01', '2025-10-12T09:00:00Z', 'goal', 'Wrote the first goal: three months of breathing room',
+    'Everything else waits until this exists. Eighteen thousand, in cash, not touched.', undefined),
+  j('jg-02', '2025-11-02T09:05:00Z', 'goal', 'House deposit, for April 2027',
+    'The lease ends then. A hundred and twenty thousand is a real number for a real place, not a wish. Three and a half thousand a month from now.', undefined),
+  j('jg-03', '2026-01-18T09:10:00Z', 'goal', 'Decided to build the tool library',
+    'A goal that is a thing to make rather than a thing to buy. Twenty-four thousand is a year of runway for one person and a van.', undefined),
+  j('jg-04', '2026-03-01T09:15:00Z', 'habit', 'Started tracking cannabis spend',
+    'Baseline three hundred and forty a month. Target one-fifty. Whatever I do not spend goes to the house, which is the only thing that has ever made this feel like a trade rather than a deprivation.', undefined),
+  j('jg-05', '2026-03-02T09:00:00Z', 'goal', 'Breathing room reached',
+    'Eighteen thousand set aside. Took five months. It changes how the rest of the notebook feels.', undefined),
+  j('jg-06', '2026-06-01T10:00:00Z', 'habit', 'Second and third habits',
+    'Delivery dinners fund the six weeks off. Dead subscriptions fund the tool library. The rule for all three: the reward is the goal moving, nothing else.', undefined),
+  j('jg-07', '2026-07-05T08:30:00Z', 'values', 'Marked privacy and climate as core',
+    'Went through the map with the values on. Verisk is a problem: it is the right company for the verification thesis and the wrong company for me.', undefined),
+  j('jg-08', '2026-08-31T20:00:00Z', 'habit', 'August: first month under target',
+    'One hundred and forty-five on cannabis. One hundred and ninety-five released to the house. That is the whole system working once.', undefined),
+  j('jg-09', '2026-09-01T08:10:00Z', 'goal', 'The house is behind',
+    'At the current rate the deposit lands just under ninety thousand in April, not a hundred and twenty. Either the date moves, the rate moves, or the over-allocated grid sleeve pays for it.', undefined),
+]
+
+/* Review items for the goals and values side. */
+export const seedReviewGoals: ReviewItem[] = [
+  {
+    id: 'rv-house',
+    createdAt: '2026-09-01T08:15:00Z',
+    status: 'pending',
+    kind: 'goal',
+    title: 'The house deposit is about $30,700 short for April',
+    summary:
+      'At $3,500 a month the deposit reaches roughly $89,300 by the end of April 2027 against a $120,000 target. The Grid Deficit sleeve is 2.8 points over its target, which is $11,700 of drift nobody has decided to keep.',
+    proposal:
+      'Trim the Grid Deficit sleeve back to target and earmark the $11,700 for the house, and raise the monthly contribution to $6,200 for the remaining months. Or move the date to August, which the current rate reaches on its own.',
+    goalId: 'g-house',
+    sleeveId: 'sl-grid',
+    chain: [
+      { kind: 'goal', label: 'House deposit', detail: 'Target $120,000 by 30 April 2027. Funded a little over $64,000 including habit releases, plus $3,500 a month.', goalId: 'g-house' },
+      { kind: 'rule', label: 'Projection', detail: 'Seven monthly contributions from now: $24,500. Lands at roughly $89,300 — about $30,700 short.', goalId: 'g-house' },
+      { kind: 'sleeve', label: 'Grid Deficit', detail: 'Current 19.3%, target 16.5%. Drift +2.8 points, about $11,700 over.', sleeveId: 'sl-grid' },
+      { kind: 'habit', label: 'Smoke less', detail: 'Releasing roughly $190 a month at the current run rate.', habitId: 'h-weed' },
+    ],
+  },
+  {
+    id: 'rv-verisk',
+    createdAt: '2026-07-05T08:40:00Z',
+    status: 'pending',
+    kind: 'values',
+    title: 'Verisk works against a core value',
+    summary:
+      'Privacy is marked core. Verisk scores −2 on it: its product is a detailed profile of people and property sold to insurers. It is not held in any sleeve, but it sits on the map under the verification thesis and would be the obvious addition.',
+    proposal:
+      'Keep it on the map as a measurement device and mark it "will not hold". If the verification thesis ever needs a position, look for a company that verifies without profiling.',
+    nodeId: 'co-vrsk',
+    chain: [
+      { kind: 'value', label: 'Privacy — core', detail: 'You weighted this at 2 of 2 on 5 July.' },
+      { kind: 'company', label: 'Verisk Analytics', detail: 'Scores −2 on privacy and −1 on financial fairness.', nodeId: 'co-vrsk' },
+      { kind: 'thesis', label: 'Verification as a platform', detail: 'The thesis it measures. Confidence 43 — the weakest on the map anyway.', nodeId: 't-verification' },
     ],
   },
 ]

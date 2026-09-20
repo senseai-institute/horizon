@@ -28,6 +28,8 @@ export interface GraphNode {
   businessDescription?: string
   sicCode?: string
   sicLabel?: string
+  /** Where the company stands on the values a reader can choose. Companies only. */
+  values?: ValueStance[]
   createdAt: string
   archived?: boolean
 }
@@ -106,7 +108,7 @@ export interface Sleeve {
   note?: string
 }
 
-export type ChainKind = 'evidence' | 'company' | 'thesis' | 'pillar' | 'category' | 'sleeve' | 'rule'
+export type ChainKind = 'evidence' | 'company' | 'thesis' | 'pillar' | 'category' | 'sleeve' | 'rule' | 'goal' | 'habit' | 'value'
 
 export interface ChainLink {
   kind: ChainKind
@@ -115,11 +117,13 @@ export interface ChainLink {
   nodeId?: string
   evidenceId?: string
   sleeveId?: string
+  goalId?: string
+  habitId?: string
   delta?: number
 }
 
 export type ReviewStatus = 'pending' | 'approved' | 'rejected'
-export type ReviewKind = 'trim' | 'add' | 'flag' | 'rebalance' | 'review-thesis'
+export type ReviewKind = 'trim' | 'add' | 'flag' | 'rebalance' | 'review-thesis' | 'goal' | 'values'
 
 export interface ReviewItem {
   id: string
@@ -134,6 +138,7 @@ export interface ReviewItem {
   chain: ChainLink[]
   sleeveId?: string
   nodeId?: string
+  goalId?: string
   decidedAt?: string
 }
 
@@ -144,6 +149,9 @@ export type JournalType =
   | 'decision'
   | 'discovery'
   | 'sleeve'
+  | 'goal'
+  | 'habit'
+  | 'values'
   | 'note'
 
 export interface JournalEntry {
@@ -153,6 +161,7 @@ export interface JournalEntry {
   title: string
   detail: string
   nodeId?: string
+  goalId?: string
   delta?: number
 }
 
@@ -202,3 +211,82 @@ export interface NodePosition {
   fx?: number | null
   fy?: number | null
 }
+
+/* ------------------------------------------------------------------ */
+/* Goals — what the money is for.                                      */
+/* ------------------------------------------------------------------ */
+
+/** When the goal lands. Present-day, within a year, one to five years, beyond. */
+export type Horizon = 'now' | 'soon' | 'later' | 'someday'
+
+/** Saving for something, building something, or giving something away. */
+export type GoalKind = 'save' | 'build' | 'give'
+
+export interface Goal {
+  id: string
+  title: string
+  /** One honest sentence about why this matters. */
+  why: string
+  horizon: Horizon
+  kind: GoalKind
+  targetUsd: number
+  /** Cash set aside for this goal. Habits release money into it. */
+  earmarkedUsd: number
+  /** Regular contribution from income. */
+  monthlyUsd: number
+  /** YYYY-MM-DD. Optional for open-ended goals. */
+  targetDate?: string
+  /** Long-horizon goals are funded by belief-driven sleeves; their value counts here. */
+  linkedSleeveIds: string[]
+  status: 'active' | 'reached' | 'paused'
+  createdAt: string
+  reachedAt?: string
+}
+
+/* ------------------------------------------------------------------ */
+/* Habits — spending you want less of, with the difference redirected.   */
+/* ------------------------------------------------------------------ */
+
+export interface HabitMonth {
+  /** YYYY-MM */
+  month: string
+  spentUsd: number
+}
+
+export interface Habit {
+  id: string
+  title: string
+  /** The spending category being tracked. */
+  category: string
+  /** What a typical month looked like before. */
+  baselineMonthlyUsd: number
+  /** What you are aiming for. */
+  targetMonthlyUsd: number
+  /** Where the difference goes. */
+  redirectToGoalId: string
+  months: HabitMonth[]
+  createdAt: string
+  note?: string
+}
+
+/* ------------------------------------------------------------------ */
+/* Values — what you will and will not own.                            */
+/* ------------------------------------------------------------------ */
+
+export interface ValueDef {
+  id: string
+  label: string
+  blurb: string
+}
+
+/** −2 works against the value, +2 clearly advances it. */
+export type ValueScore = -2 | -1 | 0 | 1 | 2
+
+export interface ValueStance {
+  valueId: string
+  score: ValueScore
+  reason: string
+}
+
+/** 0 = not a consideration, 1 = matters, 2 = core. */
+export type ValueWeight = 0 | 1 | 2

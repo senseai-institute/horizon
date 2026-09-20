@@ -63,7 +63,7 @@ export default function AddEvidenceForm({
         stance === 'contradicts'
           ? 'Attached as contradicting. Confidence has fallen through every belief above it.'
           : 'Attached as supporting. Confidence has been recomputed up the branch.',
-      to: '/review',
+      to: '/money/review',
       actionLabel: 'Open review queue',
     })
     onDone?.()

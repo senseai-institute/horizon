@@ -90,3 +90,20 @@ export const IconPin = () => (
     <path d="M5 2.4h6l-.9 4.1 1.3 1.4H4.6l1.3-1.4z" />
   </S>
 )
+export const IconToday = () => (
+  <S>
+    <circle cx="8" cy="8" r="5.4" />
+    <path d="M8 5v3.2l2.2 1.4" />
+  </S>
+)
+export const IconGoal = () => (
+  <S>
+    <path d="M4 13.4V2.8" />
+    <path d="M4 3.2h7.6l-1.6 2.6 1.6 2.6H4" />
+  </S>
+)
+export const IconValues = () => (
+  <S>
+    <path d="M8 13.2S2.8 9.9 2.8 6.2a2.6 2.6 0 0 1 5.2-.6 2.6 2.6 0 0 1 5.2.6c0 3.7-5.2 7-5.2 7Z" />
+  </S>
+)

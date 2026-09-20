@@ -12,15 +12,20 @@ const TYPE_LABEL: Record<JournalType, string> = {
   decision: 'Decision',
   discovery: 'Discovery',
   sleeve: 'Sleeve',
+  goal: 'Goal',
+  habit: 'Habit',
+  values: 'Values',
   note: 'Note',
 }
 
-const FILTERS: (JournalType | 'all')[] = ['all', 'belief', 'evidence', 'confidence', 'decision', 'discovery', 'sleeve', 'note']
+const FILTERS: (JournalType | 'all')[] = ['all', 'goal', 'habit', 'belief', 'evidence', 'confidence', 'decision', 'values', 'sleeve', 'note']
 
 export default function JournalScreen() {
   const journal = useHorizon((s) => s.journal)
   const addNote = useHorizon((s) => s.addNote)
   const { index } = useGraph()
+  const goals = useHorizon((s) => s.goals)
+  const goalById = useMemo(() => new Map(goals.map((g) => [g.id, g.title])), [goals])
   const [filter, setFilter] = useState<JournalType | 'all'>('all')
   const [noteOpen, setNoteOpen] = useState(false)
   const [note, setNote] = useState({ title: '', detail: '' })
@@ -118,8 +123,13 @@ export default function JournalScreen() {
                         {e.detail}
                       </p>
                       {node && (
-                        <Link to={`/thesis/${node.id}`} className="link-button" style={{ fontSize: 12.5, marginTop: 6, display: 'inline-block' }}>
+                        <Link to={`/beliefs/${node.id}`} className="link-button" style={{ fontSize: 12.5, marginTop: 6, display: 'inline-block' }}>
                           {node.label}
+                        </Link>
+                      )}
+                      {e.goalId && goalById.get(e.goalId) && (
+                        <Link to={`/goals/${e.goalId}`} className="link-button" style={{ fontSize: 12.5, marginTop: 6, display: 'inline-block', marginLeft: node ? 12 : 0 }}>
+                          {goalById.get(e.goalId)}
                         </Link>
                       )}
                     </div>

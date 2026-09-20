@@ -33,7 +33,7 @@ export default function EvidenceViewerScreen() {
     return (
       <div className="page page-narrow">
         <EmptyState title="That passage is not in this notebook">
-          <Link to="/evidence">Back to all evidence</Link>.
+          <Link to="/beliefs/evidence">Back to all evidence</Link>.
         </EmptyState>
       </div>
     )
@@ -48,7 +48,7 @@ export default function EvidenceViewerScreen() {
   return (
     <div className="page" style={{ maxWidth: 1060 }}>
       <div style={{ marginBottom: 22 }}>
-        <Link to="/evidence" className="link-button" style={{ fontSize: 13 }}>
+        <Link to="/beliefs/evidence" className="link-button" style={{ fontSize: 13 }}>
           ← All evidence
         </Link>
       </div>
@@ -96,7 +96,7 @@ export default function EvidenceViewerScreen() {
                       s === 'contradicts'
                         ? 'Marked as contradicting. Confidence has fallen through every belief above it.'
                         : 'Marked as supporting. Confidence has risen through the branch above it.',
-                    to: '/review',
+                    to: '/money/review',
                     actionLabel: 'Open review queue',
                   })
                 }}
@@ -159,7 +159,7 @@ export default function EvidenceViewerScreen() {
                 return (
                   <li key={nodeId} className={i === 0 ? 'is-evidence' : undefined}>
                     <Link
-                      to={`/thesis/${nodeId}`}
+                      to={`/beliefs/${nodeId}`}
                       style={{ color: 'var(--ink)', textDecoration: 'none', fontSize: 13.5 }}
                     >
                       {n.label}

@@ -145,9 +145,10 @@ export default function ThesisMapScreen() {
     <div className="fill">
       <div className="banner">
         <span>
-          Sample notebook. Three pillars, {nodes.filter((n) => n.kind === 'thesis').length} theses,{' '}
-          {nodes.filter((n) => n.kind === 'company').length} companies. Click a node to open it and reveal what
-          hangs underneath.
+          Your worldview as a map: {nodes.filter((n) => n.kind === 'pillar' && !n.archived).length} pillars,{' '}
+          {nodes.filter((n) => n.kind === 'thesis' && !n.archived).length} theses,{' '}
+          {nodes.filter((n) => n.kind === 'company' && !n.archived).length} companies. Confidence is computed from
+          evidence. Click a node to open it and reveal what hangs underneath.
         </span>
       </div>
 
@@ -306,7 +307,7 @@ export default function ThesisMapScreen() {
                 {KIND_LABEL[selectedNode.kind]}
               </span>
               <Link
-                to={`/thesis/${selectedNode.id}`}
+                to={`/beliefs/${selectedNode.id}`}
                 className="truncate"
                 style={{ fontFamily: 'var(--serif)', fontSize: 19, color: 'var(--ink)', textDecoration: 'none' }}
               >
@@ -316,7 +317,7 @@ export default function ThesisMapScreen() {
             <button
               type="button"
               className="btn btn-sm"
-              onClick={() => navigate(`/thesis/${selectedNode.id}`)}
+              onClick={() => navigate(`/beliefs/${selectedNode.id}`)}
               title="Open the full page"
             >
               Full page

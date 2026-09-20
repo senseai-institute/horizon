@@ -89,7 +89,7 @@ export default function DiscoveryScreen() {
 
       {sorted.length === 0 ? (
         <EmptyState title={`You have been through every match for ${seed.name}`}>
-          Accepted companies are on the <Link to="/map">map</Link>. Rejected ones are remembered and will not
+          Accepted companies are on the <Link to="/beliefs">map</Link>. Rejected ones are remembered and will not
           come back.
         </EmptyState>
       ) : (

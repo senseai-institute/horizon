@@ -3,10 +3,11 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "Horizon — a research notebook for turning beliefs into a portfolio. Frontend-only prototype with fabricated data.",
+  "description": "Horizon \u2014 a personal command centre for goals, beliefs and values. Frontend-only prototype with fabricated data.",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "start": "node server.mjs",
     "preview": "vite preview",
     "typecheck": "tsc -b --noEmit"
   },
@@ -24,5 +25,8 @@
     "@vitejs/plugin-react": "^6.1.1",
     "typescript": "^5.9.3",
     "vite": "^8.3.0"
+  },
+  "engines": {
+    "node": ">=20"
   }
 }

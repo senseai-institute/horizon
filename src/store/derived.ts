@@ -1,6 +1,15 @@
 import { useMemo } from 'react'
+import { seedValues } from '../data/seed'
 import { computeConfidence, descendants } from '../lib/confidence'
-import type { GraphNode, Sleeve } from '../lib/types'
+import {
+  alignCompany,
+  projectGoal,
+  viewHabit,
+  type AlignmentView,
+  type GoalProjection,
+  type HabitView,
+} from '../lib/goals'
+import type { GraphNode, Sleeve, ValueWeight } from '../lib/types'
 import { useHorizon } from './useHorizon'
 
 /** The whole map, scored. Memoised on the three arrays it depends on. */
@@ -57,6 +66,7 @@ export interface PortfolioView {
 export function usePortfolio(): PortfolioView {
   const sleeves = useHorizon((s) => s.sleeves)
   const cashUsd = useHorizon((s) => s.cashUsd)
+  const willNotHold = useHorizon((s) => s.willNotHold)
   const { confidence, index } = useGraph()
 
   return useMemo(() => {
@@ -103,6 +113,8 @@ export function usePortfolio(): PortfolioView {
           )
         if (!branchIds.has(p.companyId))
           breaches.push(`${p.node?.label ?? p.companyId} no longer sits under this branch of the map.`)
+        if (willNotHold.includes(p.companyId))
+          breaches.push(`${p.node?.label ?? p.companyId} is marked "will not hold" on the values screen.`)
       }
 
       return {
@@ -130,7 +142,7 @@ export function usePortfolio(): PortfolioView {
       sleeves: views,
       unallocatedPct: Math.max(0, 100 - allocatedTarget),
     }
-  }, [sleeves, cashUsd, confidence, index])
+  }, [sleeves, cashUsd, confidence, index, willNotHold])
 }
 
 /** Evidence attached to a node, newest first. */
@@ -149,4 +161,91 @@ export function useEvidenceFor(nodeId: string | undefined) {
 
 export function usePendingCount() {
   return useHorizon((s) => s.reviewItems.filter((r) => r.status === 'pending').length)
+}
+
+/* ------------------------------------------------------------------ */
+/* Goals and habits                                                    */
+/* ------------------------------------------------------------------ */
+
+
+export function useHabitViews(): HabitView[] {
+  const habits = useHorizon((s) => s.habits)
+  return useMemo(() => habits.map((h) => viewHabit(h)), [habits])
+}
+
+export interface GoalsView {
+  projections: GoalProjection[]
+  /** Cash not earmarked for anything. */
+  freeCashUsd: number
+  totalReleasedUsd: number
+}
+
+export function useGoalViews(): GoalsView {
+  const goals = useHorizon((s) => s.goals)
+  const cashUsd = useHorizon((s) => s.cashUsd)
+  const portfolio = usePortfolio()
+  const habitViews = useHabitViews()
+  return useMemo(() => {
+    const sleeveValue = (id: string) => portfolio.sleeves.find((v) => v.sleeve.id === id)?.valueUsd ?? 0
+    const releasedTo = (goalId: string) =>
+      habitViews.filter((h) => h.habit.redirectToGoalId === goalId).reduce((a, h) => a + h.releasedUsd, 0)
+    const projections = goals.map((g) => {
+      const released = releasedTo(g.id)
+      // Habit releases are earmarked cash too; they sit on top of the manual earmark.
+      return projectGoal({ ...g, earmarkedUsd: g.earmarkedUsd + released }, sleeveValue, released)
+    })
+    const earmarked = projections.reduce((a, p) => a + p.goal.earmarkedUsd, 0)
+    return {
+      projections,
+      freeCashUsd: Math.max(0, cashUsd - earmarked),
+      totalReleasedUsd: habitViews.reduce((a, h) => a + h.releasedUsd, 0),
+    }
+  }, [goals, cashUsd, portfolio, habitViews])
+}
+
+/* ------------------------------------------------------------------ */
+/* Values                                                              */
+/* ------------------------------------------------------------------ */
+
+export interface ValuesView {
+  weights: Record<string, ValueWeight>
+  byCompany: Record<string, AlignmentView>
+  /** Value-weighted alignment of the money actually deployed, −100…100. */
+  portfolioScore: number | null
+  /** Companies on the map that work against a core value. */
+  conflicts: GraphNode[]
+  coreCount: number
+}
+
+export function useValuesView(): ValuesView {
+  const nodes = useHorizon((s) => s.nodes)
+  const weights = useHorizon((s) => s.valueWeights)
+  const portfolio = usePortfolio()
+  return useMemo(() => {
+    const byCompany: Record<string, AlignmentView> = {}
+    const conflicts: GraphNode[] = []
+    for (const n of nodes) {
+      if (n.kind !== 'company' || n.archived) continue
+      const a = alignCompany(n, weights, seedValues)
+      byCompany[n.id] = a
+      if (a.hardConflict) conflicts.push(n)
+    }
+    let num = 0
+    let den = 0
+    for (const sv of portfolio.sleeves) {
+      for (const p of sv.positions) {
+        const a = byCompany[p.companyId]
+        if (!a || a.score === null) continue
+        num += a.score * p.valueUsd
+        den += p.valueUsd
+      }
+    }
+    return {
+      weights,
+      byCompany,
+      portfolioScore: den > 0 ? Math.round(num / den) : null,
+      conflicts,
+      coreCount: Object.values(weights).filter((w) => w === 2).length,
+    }
+  }, [nodes, weights, portfolio])
 }

@@ -5,28 +5,38 @@ import {
   seedDiscovery,
   seedEdges,
   seedEvidence,
+  seedGoals,
+  seedHabits,
   seedJournal,
+  seedJournalGoals,
   seedNodes,
+  seedReviewGoals,
   seedReviewItems,
   seedSleeves,
+  seedValues,
+  seedValueWeights,
 } from '../data/seed'
+import { alignCompany, monthKey, projectGoal, viewHabit } from '../lib/goals'
 import type {
   Candidate,
   CandidateStatus,
   Evidence,
+  Goal,
   GraphEdge,
   GraphNode,
+  Habit,
   JournalEntry,
   NodePosition,
   ReviewItem,
   ReviewStatus,
   Sleeve,
   Stance,
+  ValueWeight,
 } from '../lib/types'
 import { stanceWord } from '../lib/types'
 import { reconcile, type Snapshot, type Trigger } from './reconcile'
 
-export const STORAGE_KEY = 'horizon.notebook.v1'
+export const STORAGE_KEY = 'horizon.notebook.v2'
 
 interface Draft {
   belief: string
@@ -48,6 +58,22 @@ export interface HorizonState {
   onboarded: boolean
   /** Kept so a returning user can see what they wrote on their first visit. */
   firstDraft: Draft | null
+  goals: Goal[]
+  habits: Habit[]
+  valueWeights: Record<string, ValueWeight>
+  /** Companies the reader has decided not to own, whatever the map says. */
+  willNotHold: string[]
+
+  addGoal: (input: Omit<Goal, 'id' | 'createdAt' | 'status' | 'linkedSleeveIds'> & { linkedSleeveIds?: string[] }) => string
+  updateGoal: (id: string, patch: Partial<Goal>) => void
+  earmarkToGoal: (id: string, usd: number, reason: string) => void
+  setGoalStatus: (id: string, status: Goal['status']) => void
+  addHabit: (input: Omit<Habit, 'id' | 'createdAt' | 'months'>) => string
+  logHabitMonth: (habitId: string, month: string, spentUsd: number) => void
+  updateHabit: (id: string, patch: Partial<Pick<Habit, 'title' | 'targetMonthlyUsd' | 'baselineMonthlyUsd' | 'redirectToGoalId' | 'note'>>) => void
+  removeHabit: (id: string) => void
+  setValueWeight: (valueId: string, weight: ValueWeight) => void
+  toggleWillNotHold: (nodeId: string) => void
 
   setEvidenceStance: (id: string, stance: Stance) => void
   setEvidenceStrength: (id: string, strength: number) => void
@@ -71,7 +97,8 @@ export interface HorizonState {
   unpinNode: (id: string) => void
   unpinAll: () => void
 
-  completeOnboarding: (draft: Draft) => { pillarId: string; thesisId: string }
+  addBelief: (draft: Draft) => { pillarId: string; thesisId: string }
+  completeOnboarding: () => void
   skipOnboarding: () => void
   addNote: (title: string, detail: string, nodeId?: string) => void
   resetNotebook: () => void
@@ -103,14 +130,94 @@ function seedState() {
     edges: seedEdges.map((e) => ({ ...e })),
     evidence: seedEvidence.map((e) => ({ ...e })),
     sleeves: seedSleeves.map((s) => ({ ...s, positions: s.positions.map((p) => ({ ...p })) })),
-    reviewItems: seedReviewItems.map((r) => ({ ...r })),
-    journal: seedJournal.map((j) => ({ ...j })),
+    reviewItems: [...seedReviewGoals, ...seedReviewItems].map((r) => ({ ...r })),
+    journal: [...seedJournal, ...seedJournalGoals].map((j) => ({ ...j })),
     candidateStatus: {} as Record<string, CandidateStatus>,
     layout: {} as Record<string, NodePosition>,
     cashUsd: SEED_CASH_USD,
     onboarded: false,
     firstDraft: null as Draft | null,
+    goals: seedGoals.map((g) => ({ ...g, linkedSleeveIds: [...g.linkedSleeveIds] })),
+    habits: seedHabits.map((h) => ({ ...h, months: h.months.map((m) => ({ ...m })) })),
+    valueWeights: { ...seedValueWeights },
+    willNotHold: [] as string[],
   }
+}
+
+const money = (n: number) => `$${Math.round(n).toLocaleString('en-US')}`
+
+/**
+ * Looks at every active goal with a date and raises one item per goal that
+ * is going to land short at the current rate. Points at an over-allocated
+ * sleeve when there is one, because that is money nobody has decided to keep.
+ */
+function goalItems(state: Pick<HorizonState, 'goals' | 'habits' | 'sleeves' | 'reviewItems' | 'cashUsd'>, now: string): ReviewItem[] {
+  const out: ReviewItem[] = []
+  const pending = new Set(state.reviewItems.filter((r) => r.status === 'pending' && r.kind === 'goal').map((r) => r.goalId))
+  const sleeveValue = (id: string) => state.sleeves.find((s) => s.id === id)?.positions.reduce((a, p) => a + p.valueUsd, 0) ?? 0
+  const totalUsd = state.cashUsd + state.sleeves.reduce((a, s) => a + sleeveValue(s.id), 0)
+  const released = (goalId: string) =>
+    state.habits.filter((h) => h.redirectToGoalId === goalId).reduce((a, h) => a + viewHabit(h).releasedUsd, 0)
+  const over = state.sleeves
+    .map((s) => ({ s, driftUsd: (sleeveValue(s.id) / totalUsd) * 100 - s.targetPct }))
+    .map((x) => ({ ...x, usd: (x.driftUsd / 100) * totalUsd }))
+    .filter((x) => x.driftUsd > 1)
+    .sort((a, b) => b.usd - a.usd)[0]
+  for (const goal of state.goals) {
+    if (goal.status !== 'active' || !goal.targetDate || pending.has(goal.id)) continue
+    const p = projectGoal(goal, sleeveValue, released(goal.id), new Date(now))
+    if (p.shortfallUsd < 250) continue
+    const uid = `rv-goal-${goal.id}-${Date.parse(now).toString(36)}`
+    const chain: ReviewItem['chain'] = [
+      { kind: 'goal', label: goal.title, detail: `Target ${money(goal.targetUsd)}${goal.targetDate ? ` by ${new Date(goal.targetDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}` : ''}. Funded ${money(p.fundedUsd)}, plus ${money(goal.monthlyUsd)} a month.`, goalId: goal.id },
+      { kind: 'rule', label: 'Projection', detail: `${p.monthsToDate} monthly contributions left. Lands at ${money(p.fundedUsd + goal.monthlyUsd * (p.monthsToDate ?? 0))}, ${money(p.shortfallUsd)} short.`, goalId: goal.id },
+    ]
+    if (over) chain.push({ kind: 'sleeve', label: over.s.name, detail: `Currently ${over.driftUsd.toFixed(1)} points over its target — about ${money(over.usd)} nobody has decided to keep.`, sleeveId: over.s.id })
+    out.push({
+      id: uid,
+      createdAt: now,
+      status: 'pending',
+      kind: 'goal',
+      title: `${goal.title} is ${money(p.shortfallUsd)} short`,
+      summary: `At ${money(goal.monthlyUsd)} a month it lands ${money(p.shortfallUsd)} under the ${money(goal.targetUsd)} target on its date.`,
+      proposal: over
+        ? `Trim ${over.s.name} back to target and earmark the ${money(Math.min(over.usd, p.shortfallUsd))} for this goal${p.neededMonthlyUsd && p.neededMonthlyUsd > goal.monthlyUsd ? `, or raise the monthly contribution to ${money(p.neededMonthlyUsd)}` : ''}.`
+        : p.neededMonthlyUsd
+          ? `Raise the monthly contribution to ${money(p.neededMonthlyUsd)}, or move the date.`
+          : 'Move the date, or lower the target.',
+      goalId: goal.id,
+      sleeveId: over?.s.id,
+      chain,
+    })
+  }
+  return out
+}
+
+/** One item per company on the map that works against a core value. */
+function valueItems(state: Pick<HorizonState, 'nodes' | 'valueWeights' | 'reviewItems' | 'willNotHold'>, now: string): ReviewItem[] {
+  const out: ReviewItem[] = []
+  const pending = new Set(state.reviewItems.filter((r) => r.status === 'pending' && r.kind === 'values').map((r) => r.nodeId))
+  for (const node of state.nodes) {
+    if (node.kind !== 'company' || node.archived || pending.has(node.id) || state.willNotHold.includes(node.id)) continue
+    const a = alignCompany(node, state.valueWeights, seedValues)
+    if (!a.hardConflict) continue
+    const worst = a.conflicts[0]
+    out.push({
+      id: `rv-values-${node.id}-${Date.parse(now).toString(36)}`,
+      createdAt: now,
+      status: 'pending',
+      kind: 'values',
+      title: `${node.label} works against a core value`,
+      summary: `${worst.value.label} is marked core. ${node.label} scores ${worst.score} on it: ${worst.reason}`,
+      proposal: 'Keep it on the map as a measurement device and mark it "will not hold", or decide the value is not core after all.',
+      nodeId: node.id,
+      chain: [
+        { kind: 'value', label: `${worst.value.label} — core`, detail: 'Weighted 2 of 2 on the values screen.' },
+        { kind: 'company', label: node.label, detail: a.conflicts.map((c) => `${c.value.label} ${c.score}`).join(', ') + '.', nodeId: node.id },
+      ],
+    })
+  }
+  return out
 }
 
 export const useHorizon = create<HorizonState>()(
@@ -463,7 +570,190 @@ export const useHorizon = create<HorizonState>()(
           }),
         unpinAll: () => set({ layout: {} }),
 
-        completeOnboarding: (draft) => {
+        addGoal: (input) => {
+          const s = get()
+          const id = uid('g')
+          const at = nowIso()
+          const goal: Goal = { ...input, id, createdAt: at, status: 'active', linkedSleeveIds: input.linkedSleeveIds ?? [] }
+          const journal: JournalEntry[] = [
+            { id: uid('jr'), at, type: 'goal', title: `New goal: ${goal.title}`, detail: `${money(goal.targetUsd)}, ${goal.horizon}. ${goal.why}`, goalId: id },
+            ...s.journal,
+          ]
+          const next = { goals: [...s.goals, goal], journal }
+          set({ ...next, reviewItems: [...goalItems({ ...s, ...next }, at), ...s.reviewItems] })
+          return id
+        },
+
+        updateGoal: (id, patch) => {
+          const s = get()
+          const goal = s.goals.find((g) => g.id === id)
+          if (!goal) return
+          const at = nowIso()
+          const goals = s.goals.map((g) => (g.id === id ? { ...g, ...patch } : g))
+          const changed = Object.keys(patch).filter((k) => (patch as Record<string, unknown>)[k] !== (goal as unknown as Record<string, unknown>)[k])
+          if (!changed.length) return
+          const journal: JournalEntry[] = [
+            { id: uid('jr'), at, type: 'goal', title: `Changed ${goal.title}`, detail: `Updated ${changed.join(', ')}.`, goalId: id },
+            ...s.journal,
+          ]
+          set({ goals, journal, reviewItems: [...goalItems({ ...s, goals }, at), ...s.reviewItems] })
+        },
+
+        earmarkToGoal: (id, usd, reason) => {
+          const s = get()
+          const goal = s.goals.find((g) => g.id === id)
+          if (!goal || !usd) return
+          const at = nowIso()
+          const goals = s.goals.map((g) => (g.id === id ? { ...g, earmarkedUsd: Math.max(0, g.earmarkedUsd + usd) } : g))
+          set({
+            goals,
+            journal: [
+              { id: uid('jr'), at, type: 'goal', title: `${usd > 0 ? 'Set aside' : 'Released'} ${money(Math.abs(usd))} ${usd > 0 ? 'for' : 'from'} ${goal.title}`, detail: reason, goalId: id },
+              ...s.journal,
+            ],
+          })
+        },
+
+        setGoalStatus: (id, status) => {
+          const s = get()
+          const goal = s.goals.find((g) => g.id === id)
+          if (!goal || goal.status === status) return
+          const at = nowIso()
+          set({
+            goals: s.goals.map((g) => (g.id === id ? { ...g, status, reachedAt: status === 'reached' ? at : g.reachedAt } : g)),
+            journal: [
+              {
+                id: uid('jr'),
+                at,
+                type: 'goal',
+                title: status === 'reached' ? `Reached: ${goal.title}` : status === 'paused' ? `Paused ${goal.title}` : `Resumed ${goal.title}`,
+                detail: status === 'reached' ? goal.why : status === 'paused' ? 'Contributions stop. The earmark stays where it is.' : 'Contributions start again.',
+                goalId: id,
+              },
+              ...s.journal,
+            ],
+          })
+        },
+
+        addHabit: (input) => {
+          const s = get()
+          const id = uid('h')
+          const at = nowIso()
+          const goal = s.goals.find((g) => g.id === input.redirectToGoalId)
+          const habit: Habit = { ...input, id, createdAt: at, months: [] }
+          set({
+            habits: [...s.habits, habit],
+            journal: [
+              {
+                id: uid('jr'),
+                at,
+                type: 'habit',
+                title: `Started tracking ${input.category.toLowerCase()}`,
+                detail: `Baseline ${money(input.baselineMonthlyUsd)} a month, aiming for ${money(input.targetMonthlyUsd)}. Whatever is not spent goes to ${goal?.title ?? 'a goal'}.`,
+                goalId: goal?.id,
+              },
+              ...s.journal,
+            ],
+          })
+          return id
+        },
+
+        logHabitMonth: (habitId, month, spentUsd) => {
+          const s = get()
+          const habit = s.habits.find((h) => h.id === habitId)
+          if (!habit) return
+          const at = nowIso()
+          const existing = habit.months.find((m) => m.month === month)
+          const months = existing
+            ? habit.months.map((m) => (m.month === month ? { ...m, spentUsd } : m))
+            : [...habit.months, { month, spentUsd }]
+          const habits = s.habits.map((h) => (h.id === habitId ? { ...h, months } : h))
+          const goal = s.goals.find((g) => g.id === habit.redirectToGoalId)
+          const released = Math.max(0, habit.baselineMonthlyUsd - spentUsd)
+          const isCurrent = month === monthKey(new Date(at))
+          const under = spentUsd <= habit.targetMonthlyUsd
+          const label = new Date(Number(month.slice(0, 4)), Number(month.slice(5, 7)) - 1, 1).toLocaleDateString('en-GB', { month: 'long' })
+          const journal: JournalEntry[] = [
+            {
+              id: uid('jr'),
+              at,
+              type: 'habit',
+              title: isCurrent
+                ? `${label} so far: ${money(spentUsd)} on ${habit.category.toLowerCase()}`
+                : under
+                  ? `${label}: under target on ${habit.category.toLowerCase()}`
+                  : `${label}: ${money(spentUsd)} on ${habit.category.toLowerCase()}`,
+              detail: isCurrent
+                ? `On course to release ${money(released)} to ${goal?.title ?? 'the goal'} when the month closes.`
+                : released > 0
+                  ? `${money(released)} released to ${goal?.title ?? 'the goal'}${under ? '. Target was ' + money(habit.targetMonthlyUsd) + ' — met.' : '.'}`
+                  : `Over the ${money(habit.baselineMonthlyUsd)} baseline. Nothing released this month; nothing lost either.`,
+              goalId: goal?.id,
+              delta: isCurrent ? undefined : released || undefined,
+            },
+            ...s.journal,
+          ]
+          set({ habits, journal, reviewItems: [...goalItems({ ...s, habits }, at), ...s.reviewItems] })
+        },
+
+        updateHabit: (id, patch) =>
+          set((s) => ({ habits: s.habits.map((h) => (h.id === id ? { ...h, ...patch } : h)) })),
+
+        removeHabit: (id) => {
+          const s = get()
+          const habit = s.habits.find((h) => h.id === id)
+          if (!habit) return
+          set({
+            habits: s.habits.filter((h) => h.id !== id),
+            journal: [
+              { id: uid('jr'), at: nowIso(), type: 'habit', title: `Stopped tracking ${habit.category.toLowerCase()}`, detail: 'The months already released stay with their goal.' },
+              ...s.journal,
+            ],
+          })
+        },
+
+        setValueWeight: (valueId, weight) => {
+          const s = get()
+          if ((s.valueWeights[valueId] ?? 0) === weight) return
+          const at = nowIso()
+          const valueWeights = { ...s.valueWeights, [valueId]: weight }
+          const value = seedValues.find((v) => v.id === valueId)
+          const journal: JournalEntry[] = [
+            {
+              id: uid('jr'),
+              at,
+              type: 'values',
+              title: `${value?.label ?? valueId}: ${weight === 2 ? 'core' : weight === 1 ? 'matters' : 'not a consideration'}`,
+              detail: weight === 2 ? 'Companies that work against this will be raised for review.' : 'Alignment scores have been recomputed.',
+            },
+            ...s.journal,
+          ]
+          set({ valueWeights, journal, reviewItems: [...valueItems({ ...s, valueWeights }, at), ...s.reviewItems] })
+        },
+
+        toggleWillNotHold: (nodeId) => {
+          const s = get()
+          const node = s.nodes.find((n) => n.id === nodeId)
+          const on = s.willNotHold.includes(nodeId)
+          set({
+            willNotHold: on ? s.willNotHold.filter((id) => id !== nodeId) : [...s.willNotHold, nodeId],
+            journal: [
+              {
+                id: uid('jr'),
+                at: nowIso(),
+                type: 'values',
+                title: on ? `${node?.label ?? nodeId} can be held again` : `Will not hold ${node?.label ?? nodeId}`,
+                detail: on ? 'The values conflict stands; the decision changed.' : 'Stays on the map as a measurement device. No sleeve will hold it.',
+                nodeId,
+              },
+              ...s.journal,
+            ],
+          })
+        },
+
+        completeOnboarding: () => set({ onboarded: true }),
+
+        addBelief: (draft) => {
           const s = get()
           const at = nowIso()
           const pillarId = uid('p')
@@ -502,8 +792,7 @@ export const useHorizon = create<HorizonState>()(
                 createdAt: at,
               },
             ],
-            onboarded: true,
-            firstDraft: draft,
+            firstDraft: s.firstDraft ?? draft,
             journal: [
               {
                 id: uid('jr'),

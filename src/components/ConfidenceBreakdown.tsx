@@ -47,7 +47,7 @@ export default function ConfidenceBreakdown({ breakdown }: { breakdown: Breakdow
                       background: e.stance === 'supports' ? 'var(--support)' : 'var(--contradict)',
                     }}
                   />
-                  <Link to={`/evidence/${e.evidenceId}`} style={{ color: 'var(--ink)', textDecoration: 'none' }}>
+                  <Link to={`/beliefs/evidence/${e.evidenceId}`} style={{ color: 'var(--ink)', textDecoration: 'none' }}>
                     {e.title}
                   </Link>
                 </span>
@@ -80,7 +80,7 @@ export default function ConfidenceBreakdown({ breakdown }: { breakdown: Breakdow
               {b.children.map((c) => (
                 <tr key={c.nodeId}>
                   <td style={{ paddingRight: 10 }}>
-                    <Link to={`/thesis/${c.nodeId}`} style={{ color: 'var(--ink)', textDecoration: 'none' }}>
+                    <Link to={`/beliefs/${c.nodeId}`} style={{ color: 'var(--ink)', textDecoration: 'none' }}>
                       {c.label}
                     </Link>
                   </td>
