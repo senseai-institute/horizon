@@ -27,6 +27,9 @@ export const seedConnections: Connection[] = [
   { id: 'cx-bank', name: 'Bank transactions (read)', kind: 'api', gives: 'What was spent, for habits and Ledger.', where: 'internet', transactional: true, scope: 'personal', status: 'off', usedBy: ['ag-ledger'] },
   { id: 'cx-hr', name: 'Heart-rate monitor', kind: 'device', gives: 'Beats and variability over Bluetooth.', where: 'lan', transactional: false, scope: 'personal', status: 'needs-setup', usedBy: ['ag-horizon'] },
   { id: 'cx-camera', name: 'Camera capture', kind: 'device', gives: 'Frames from a camera on the machine — your own data.', where: 'machine', transactional: false, scope: 'personal', status: 'needs-setup', usedBy: [] },
+  { id: 'cx-rss', name: 'Feeds (RSS)', kind: 'api', gives: 'News and newsletters as a bounded digest, fetched once a day. Any source with a feed, none with an app.', where: 'internet', transactional: true, scope: 'personal', status: 'ready', usedBy: ['ag-horizon'] },
+  { id: 'cx-messages', name: 'Messages', kind: 'mcp', gives: 'Texts and chats through the platforms\u2019 own bridges, scored like email, answered from the Desk.', where: 'internet', transactional: true, scope: 'personal', status: 'needs-setup', usedBy: ['ag-desk'] },
+  { id: 'cx-groceries', name: 'Groceries', kind: 'api', gives: 'A list becomes an order, approved by you. The shop is a connection, not a home.', where: 'internet', transactional: true, scope: 'personal', status: 'needs-setup', usedBy: ['ag-planner'] },
   { id: 'cx-ip', name: 'Invention record', kind: 'local', gives: 'Timestamped, hashed disclosures of what you made and when — the paper trail for owning it.', where: 'machine', transactional: false, scope: 'personal', status: 'ready', usedBy: ['ag-scribe'] },
 ]
 

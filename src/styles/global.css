@@ -2460,3 +2460,129 @@ input[type='range']::-moz-range-thumb {
 .cell.right {
   text-align: right;
 }
+
+/* ---------------- Everyday: to-dos, the paper on the fridge, the closed desk ---------------- */
+
+.todo-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+.todo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--rule);
+  font-size: 14px;
+}
+.todo:last-child {
+  border-bottom: 0;
+}
+.todo.is-done {
+  opacity: 0.55;
+  text-decoration: line-through;
+}
+.todo.is-overdue .day-check {
+  border-color: var(--accent);
+}
+
+.paper {
+  background: var(--paper-raised);
+  border: 1px solid var(--rule);
+  border-radius: var(--r-lg, 12px);
+  padding: 18px 20px;
+  background-image: repeating-linear-gradient(transparent 0 31px, var(--rule) 31px 32px);
+  background-attachment: local;
+}
+.tracker {
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 13.5px;
+  min-width: 100%;
+}
+.tracker th,
+.tracker td {
+  text-align: center;
+  padding: 4px 3px;
+  white-space: nowrap;
+}
+.tracker thead th {
+  font-weight: 400;
+  color: var(--ink-3);
+  border-bottom: 1px solid var(--rule-strong);
+  padding-bottom: 6px;
+}
+.tracker tr.slots th {
+  padding: 0 3px 6px;
+  border-bottom: 1px solid var(--rule-strong);
+}
+.tracker tbody th {
+  text-align: left;
+  font-weight: 500;
+  padding-right: 14px;
+  font-family: var(--serif);
+  font-size: 15px;
+  white-space: nowrap;
+}
+.tracker .is-today {
+  background: var(--accent-soft);
+}
+.tracker thead th.is-today .num {
+  color: var(--accent);
+  font-weight: 500;
+}
+.tracker .box,
+.box-chip .box {
+  width: 22px;
+  height: 22px;
+  border-radius: 5px;
+  border: 1px solid var(--rule-strong);
+  background: var(--paper);
+  display: inline-grid;
+  place-items: center;
+  font-size: 12px;
+  color: var(--accent);
+  cursor: pointer;
+  padding: 0;
+  transition: background 120ms ease, border-color 120ms ease;
+}
+.tracker .box.is-on,
+.box-chip.is-on .box {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+}
+.tracker .box.is-missed {
+  border-style: dashed;
+  opacity: 0.7;
+}
+.box-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px 4px 4px;
+  border-radius: 999px;
+  border: 1px solid var(--rule);
+  background: var(--paper-raised);
+  font: inherit;
+  font-size: 13.5px;
+  color: var(--ink);
+  cursor: pointer;
+}
+.box-chip.is-on {
+  border-color: var(--accent);
+  color: var(--ink-2);
+}
+.box-chip .box {
+  width: 20px;
+  height: 20px;
+}
+
+.closed {
+  padding: 40px 0;
+}
+.list-rules > * + * {
+  border-top: 1px solid var(--rule);
+}

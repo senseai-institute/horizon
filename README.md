@@ -44,6 +44,43 @@ proposes still waits for you. See `runtime/README.md`.
 
 ## What it is
 
+**One application, without the hook.** Horizon is built to be the only thing
+you open: wake up and check it, add the to-do, give the cat her tablet, read
+the news, do the research, build the thing. It is also built so that being
+the only application does not make it the thing you cannot put down. The
+rules are under System → Attention and they are on by default: the **Morning**
+is the front door and it ends with "start the day"; the news is a **digest** of
+a fixed size, once a day, with an explicit end and nothing below it; there are
+**no unread counts** anywhere, only the inbox score, which goes down by doing;
+and the **Desk closes itself** in the evening — the agents keep working, the
+Morning tells you what happened, and "open it anyway" is one click but a
+deliberate one.
+
+**Everyday.** The list of workflows a whole day is made of, and whether Horizon
+is their home yet — the product roadmap kept inside the product. Morning,
+Work, Home, Body, Information, People, Money, Admin: twenty-six rows, half
+built, each with the connections it needs. Some are small and are about the
+right interface (the cat's medicine on a piece of paper); some are large (a
+computer-vision product). Add your own; mark them next; knock them out one
+by one. The principle that makes the list possible at all: **every source is
+a connection** — an API, an MCP server, a feed, an export — so nothing gets
+stuck inside someone else's product.
+
+**Morning.** One page, read top to bottom: since you were away, what is due on
+the fridge, to-dos, today's first blocks, the digest, and one line for the
+one thing that has to happen. Then "start the day" and the Desk opens. Until
+then, the Morning is where `/` lands.
+
+**To-dos.** Type it, tick it. Lighter than a journey piece — no weight, no
+project, no goal required. From the Morning, from the Desk, or from ⌘K with
+"todo …" in front of anything.
+
+**Trackers.** The piece of paper on the fridge: names down the side, days
+across the top, a box per dose. Cat medicine (Pixel and Mochi, AM and PM,
+until the 30th), the plants on Sundays, the mat on weekdays. Tick from the
+Morning, the Desk widget, or the paper itself; missed boxes stay empty and
+nothing nags. Make a new one in four fields.
+
 **Find anything.** ⌘K. Type the name of an app, a goal, a piece, an agent, a
 belief, a download — it is there. Type a sentence and Horizon takes it as a
 chat, or keeps it in the stream. One place to look.
@@ -187,12 +224,14 @@ src/os/
   senses.ts     tones and haptics
   widgets.tsx   the widget registry — one entry per widget
   workflows.ts  stage kinds and the built-in workflows
+  everyday.ts   the everyday catalogue, trackers, attention defaults
   translate.ts  idea → blueprint (milestones, sized pieces, routine, risks)
   connections.ts the connection catalogue: machine / network / internet
   lab.ts        datasets, experiments, one epoch per tick
 src/store/useOS.ts    chats, runs (with a scheduler), inbox, journey, stream, flow,
                       initiatives, day, nudges, widgets, senses, blueprints,
-                      connections, datasets, experiments, docs, sheets, routines
+                      connections, datasets, experiments, docs, sheets, routines,
+                      todos, trackers, everyday, attention
 runtime/server.mjs    Anthropic SDK; tools mirror the effects the UI applies; /feed
 ```
 

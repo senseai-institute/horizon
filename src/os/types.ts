@@ -288,7 +288,7 @@ export interface Nudge {
 /* Widgets — the Desk is made of these.                                */
 /* ------------------------------------------------------------------ */
 
-export type WidgetId = 'inbox' | 'piece' | 'day' | 'initiatives' | 'feed' | 'habits' | 'flow' | 'journey' | 'money' | 'away' | 'lab'
+export type WidgetId = 'inbox' | 'piece' | 'day' | 'initiatives' | 'feed' | 'habits' | 'flow' | 'journey' | 'money' | 'away' | 'lab' | 'todos' | 'trackers'
 
 export interface FeedItem {
   id: string
@@ -443,4 +443,70 @@ export interface Sheet {
   rows: (string | number)[][]
   createdAt: string
   updatedAt: string
+}
+
+/* ------------------------------------------------------------------ */
+/* Everyday — the small workflows that make this the only application. */
+/* ------------------------------------------------------------------ */
+
+/** A to-do: lighter than a journey piece. No weight, no dependencies, no goal required. */
+export interface Todo {
+  id: string
+  text: string
+  done: boolean
+  createdAt: string
+  doneAt?: string
+  /** YYYY-MM-DD. Undefined means "whenever". */
+  due?: string
+  initiativeId?: string
+}
+
+/**
+ * A tracker is the piece of paper on the fridge: names down the side, days
+ * across the top, a box per slot. Cat medicine, plants, stretching.
+ */
+export interface Tracker {
+  id: string
+  title: string
+  note?: string
+  /** Rows: the names. "Pixel", "Mochi". */
+  rows: string[]
+  /** Slots per day. ["AM", "PM"], or [""] for one box a day. */
+  slots: string[]
+  cadence: 'daily' | 'weekdays' | 'weekly'
+  /** For weekly: 0 = Sunday … 6 = Saturday. */
+  weekday?: number
+  /** marks[dateKey][`${row}|${slot}`] = when it was ticked. */
+  marks: Record<string, Record<string, string>>
+  createdAt: string
+  archived?: boolean
+}
+
+export type EverydayStatus = 'built' | 'next' | 'later'
+
+/** One workflow of a whole life, and whether Horizon is its home yet. */
+export interface EverydayItem {
+  id: string
+  area: 'Morning' | 'Work' | 'Home' | 'Body' | 'Information' | 'People' | 'Money' | 'Admin'
+  title: string
+  /** What the experience is, in one line. */
+  does: string
+  status: EverydayStatus
+  /** Where it lives when built. */
+  to?: string
+  /** Connection ids it needs. */
+  needs: string[]
+  custom?: boolean
+}
+
+/** The rules that keep the application from becoming a slot machine. */
+export interface AttentionSettings {
+  /** How many feed items a day. The rest never load. */
+  digestPerDay: number
+  /** The Desk closes itself after this time. "" means never. */
+  closeAt: string
+  /** The Desk opens at this time; before it, the Morning is the front door. */
+  openAt: string
+  /** Show no unread counts anywhere, only the score. */
+  noCounts: boolean
 }

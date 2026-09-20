@@ -62,6 +62,8 @@ export default function SystemScreen() {
 
   const nb = useHorizon.getState()
   const os = useOS.getState()
+  const attention = useOS((s) => s.attention)
+  const setAttention = useOS((s) => s.setAttention)
 
   return (
     <div className="page" style={{ maxWidth: 820 }}>
@@ -102,6 +104,26 @@ export default function SystemScreen() {
         <p className="meta" style={{ margin: 0 }}>
           Provider in use: <strong style={{ fontWeight: 500 }}>{useRuntime ? `runtime at ${runtimeUrl}` : 'local, offline'}</strong>.
         </p>
+      </section>
+
+      <section className="card stack stack-md" style={{ marginBottom: 24 }}>
+        <h3>Attention</h3>
+        <p className="prose-sm" style={{ margin: 0 }}>
+          The rules that keep this from becoming a slot machine. No infinite feed, no unread badges, an end to the day.
+          The aim is to open it once in the morning, work from it, and leave it.
+        </p>
+        <div className="grid-2">
+          <Field label="Digest items a day">
+            <input className="input num" type="number" min={1} max={20} value={attention.digestPerDay} onChange={(e) => setAttention({ digestPerDay: Math.max(1, Math.min(20, Number(e.target.value) || 1)) })} />
+          </Field>
+          <Field label="The Desk closes at (empty for never)">
+            <input className="input mono" type="time" value={attention.closeAt} onChange={(e) => setAttention({ closeAt: e.target.value })} />
+          </Field>
+        </div>
+        <label className="row" style={{ gap: 8, fontSize: 14 }}>
+          <input type="checkbox" checked={attention.noCounts} onChange={(e) => setAttention({ noCounts: e.target.checked })} />
+          <span>No unread counts anywhere — only the inbox score, which goes down by doing.</span>
+        </label>
       </section>
 
       <section className="card stack stack-md" style={{ marginBottom: 24 }}>
