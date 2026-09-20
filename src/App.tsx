@@ -1,4 +1,5 @@
 import { HashRouter, Navigate, Outlet, Route, Routes, useParams } from 'react-router-dom'
+import ErrorBoundary from './components/ErrorBoundary'
 import OSShell from './components/OSShell'
 import SubNav from './components/SubNav'
 import { ToastProvider } from './components/Toast'
@@ -78,6 +79,7 @@ export default function App() {
   const home = !onboarded ? '/onboarding' : morningDoneDay === todayKey() ? '/desk' : '/morning'
   return (
     <HashRouter>
+      <ErrorBoundary>
       <ToastProvider>
         <Routes>
           <Route element={<OSShell />}>
@@ -131,6 +133,7 @@ export default function App() {
           </Route>
         </Routes>
       </ToastProvider>
+      </ErrorBoundary>
     </HashRouter>
   )
 }
