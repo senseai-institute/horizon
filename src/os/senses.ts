@@ -69,6 +69,17 @@ export function stopBreathTone() {
   setTimeout(() => b.o.stop(), 600)
 }
 
+/* Browsers refuse vibration until the person has touched the page once. */
+let interacted = false
+if (typeof window !== 'undefined') {
+  const mark = () => {
+    interacted = true
+  }
+  window.addEventListener('pointerdown', mark, { once: true, passive: true })
+  window.addEventListener('keydown', mark, { once: true, passive: true })
+}
+
 export function haptic(pattern: number | number[] = 18) {
+  if (!interacted) return
   if (typeof navigator !== 'undefined' && 'vibrate' in navigator) navigator.vibrate(pattern)
 }

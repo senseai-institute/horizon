@@ -219,12 +219,10 @@ export interface FlowSession {
 /* Initiatives — an idea's whole path to an outcome.                   */
 /* ------------------------------------------------------------------ */
 
-/** Spark → research → thesis → plan → cost → launch → monitor. */
-export type InitiativeStage = 'spark' | 'research' | 'thesis' | 'plan' | 'cost' | 'launch' | 'monitor'
-
 export interface InitiativeEvent {
   at: string
-  stage: InitiativeStage
+  /** The workflow stage id. */
+  stage: string
   text: string
 }
 
@@ -234,11 +232,15 @@ export interface Initiative {
   /** Where it came from — a conversation, a drawing, a line in a notebook. */
   spark: string
   sourceDownloadId?: string
-  stage: InitiativeStage
+  /** Which workflow it runs on. */
+  workflowId: string
+  /** Index into the workflow's stages. */
+  stageIndex: number
   /** What the stages produced, once they have. */
   pillarId?: string
   thesisId?: string
   goalId?: string
+  sleeveId?: string
   pieceIds: string[]
   runIds: string[]
   blockIds: string[]

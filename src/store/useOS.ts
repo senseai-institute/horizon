@@ -4,11 +4,13 @@ import { seedGoals } from '../data/seed'
 import { seedAgents } from '../os/agents'
 import { BioSimulator, flowLevel } from '../os/bio'
 import { LocalProvider, makeRuntimeProvider, type BrainContext, type ModelProvider } from '../os/brain'
+import { computeConfidence as computeConfidenceFor, descendants as descendantsOf } from '../lib/confidence'
 import { computeNudges, planDay, todayKey } from '../os/day'
 import { inboxScore, seedInbox } from '../os/inbox'
 import { piecesForGoal, roadmapFor, roadmapTotal, settlePieces } from '../os/planner'
 import { chime, haptic } from '../os/senses'
 import type { SenseSettings } from '../os/senses'
+import { BUILTIN_WORKFLOWS, stageMeta, workflowById, type StageKind, type Workflow } from '../os/workflows'
 import type {
   Agent,
   BioSample,
@@ -19,7 +21,6 @@ import type {
   FlowSession,
   InboxItem,
   Initiative,
-  InitiativeStage,
   JourneyPiece,
   Nudge,
   Run,
@@ -191,6 +192,8 @@ export interface OSState {
   pending: Record<string, boolean>
   lastError: string | null
   initiatives: Initiative[]
+  /** Workflows the reader designed. Built-ins live in src/os/workflows.ts. */
+  workflows: Workflow[]
   blocks: TimeBlock[]
   nudges: Nudge[]
   widgets: WidgetId[]
@@ -238,9 +241,11 @@ export interface OSState {
   startSession: (pieceId?: string) => void
   endSession: () => void
 
-  // initiatives
-  createInitiative: (title: string, spark: string, sourceDownloadId?: string) => string
+  // initiatives and workflows
+  createInitiative: (workflowId: string, title: string, spark: string, sourceDownloadId?: string) => string
   advanceInitiative: (id: string) => void
+  saveWorkflow: (wf: Omit<Workflow, 'id' | 'builtin'> & { id?: string }) => string
+  deleteWorkflow: (id: string) => void
 
   // day
   ensureDay: () => void
@@ -259,24 +264,8 @@ export interface OSState {
   resetOS: () => void
 }
 
-export const STAGES: InitiativeStage[] = ['spark', 'research', 'thesis', 'plan', 'cost', 'launch', 'monitor']
-export const STAGE_LABEL: Record<InitiativeStage, string> = {
-  spark: 'Spark',
-  research: 'Research',
-  thesis: 'Thesis',
-  plan: 'Plan',
-  cost: 'Cost',
-  launch: 'Launch',
-  monitor: 'Monitor',
-}
-export const STAGE_HINT: Record<InitiativeStage, string> = {
-  spark: 'Where it came from. A conversation, a drawing, a line in a notebook.',
-  research: 'Ledger and Planner gather what is already known. Comes back as a report.',
-  thesis: 'Written as a belief on the map — a claim, a horizon, and what would prove it wrong.',
-  plan: 'Broken into pieces on the journey, with dependencies.',
-  cost: 'A roadmap with lines and a total. Becomes a goal the money can be pointed at.',
-  launch: 'Agents are given their runs. Time goes on the calendar.',
-  monitor: 'Runs report back to the Desk. Confidence and cost stay live.',
+export function allWorkflows(custom: Workflow[]): Workflow[] {
+  return [...BUILTIN_WORKFLOWS, ...custom]
 }
 
 function seedInitiatives(): Initiative[] {
@@ -285,7 +274,8 @@ function seedInitiatives(): Initiative[] {
       id: 'in-altsports',
       title: 'Alternative sports',
       spark: 'A conversation with Theo about how everyone he knows under forty plays pickleball, padel or does Hyrox, and none of them watch the NBA.',
-      stage: 'thesis',
+      workflowId: 'wf-thesis',
+      stageIndex: 2,
       pillarId: 'p-altsports',
       thesisId: 't-altsports-participation',
       pieceIds: [],
@@ -293,15 +283,35 @@ function seedInitiatives(): Initiative[] {
       blockIds: [],
       history: [
         { at: ago(70), stage: 'spark', text: 'Captured from a conversation. Kept in the stream.' },
-        { at: ago(60), stage: 'research', text: 'Ledger and Planner pulled participation data and facility counts. Report on the Desk.' },
+        { at: ago(60), stage: 'research', text: 'Planner pulled participation data and facility counts. Report on the Desk.' },
         { at: ago(20), stage: 'thesis', text: 'Written as a pillar on the map with one thesis under it. Confidence starts at the prior; nothing attached yet.' },
       ],
       createdAt: ago(70),
       updatedAt: ago(20),
     },
+    {
+      id: 'in-toollib',
+      title: 'Tool library',
+      spark: 'Every garage on the street has the same drill. A lending library for tools, evenings and weekends, out of a depot that sits empty.',
+      workflowId: 'wf-product',
+      stageIndex: 3,
+      goalId: 'g-toollib',
+      pieceIds: ['g-toollib:Write the one-page spec', 'g-toollib:Find the first ten people'],
+      runIds: ['run-roadmap-toollib'],
+      blockIds: [],
+      history: [
+        { at: ago(400), stage: 'spark', text: 'From a notebook page. Kept.' },
+        { at: ago(380), stage: 'spec', text: 'One-page spec written with Scribe. Two hundred members in year one is "done".' },
+        { at: ago(300), stage: 'customers', text: 'Ten names on the street and at the depot. Two pieces on the journey.' },
+        { at: ago(9), stage: 'cost', text: 'Planner drafted six lines, $27,900. Waiting for review; the goal target rises when approved.' },
+      ],
+      createdAt: ago(400),
+      updatedAt: ago(9),
+    },
   ]
 }
 
+/* ------------------------------------------------------------------ */
 const sim = new BioSimulator()
 export const bioSimulator = sim
 
@@ -342,6 +352,7 @@ function seedState() {
     pending: {} as Record<string, boolean>,
     lastError: null as string | null,
     initiatives: seedInitiatives(),
+    workflows: [] as Workflow[],
     blocks: [] as TimeBlock[],
     nudges: [] as Nudge[],
     widgets: ['inbox', 'piece', 'day', 'initiatives', 'feed', 'flow'] as WidgetId[],
@@ -734,87 +745,164 @@ export const useOS = create<OSState>()(
         set({ session: null, focus: false })
       },
 
-      createInitiative: (title, spark, sourceDownloadId) => {
+      createInitiative: (workflowId, title, spark, sourceDownloadId) => {
         const id = uid('in')
         const at = nowIso()
         set((s) => ({
           initiatives: [
-            { id, title, spark, sourceDownloadId, stage: 'spark', pieceIds: [], runIds: [], blockIds: [], history: [{ at, stage: 'spark', text: 'Captured.' }], createdAt: at, updatedAt: at },
+            { id, title, spark, sourceDownloadId, workflowId, stageIndex: 0, pieceIds: [], runIds: [], blockIds: [], history: [{ at, stage: 'spark', text: 'Captured.' }], createdAt: at, updatedAt: at },
             ...s.initiatives,
           ],
         }))
-        useHorizon.getState().addNote(`Initiative: ${title}`, spark)
+        const wf = workflowById(allWorkflows(get().workflows), workflowId)
+        useHorizon.getState().addNote(`Initiative: ${title}`, `${spark} Running on "${wf?.name ?? workflowId}".`)
         return id
       },
 
       /**
-       * Moves an initiative one stage on and does the real thing for that
-       * stage: a research run, a pillar on the map, pieces on the journey, a
-       * costed goal, launched runs and calendar time. Each stage leaves
-       * something you can open.
+       * Moves an initiative to its workflow's next stage and runs that stage
+       * kind's executor. Every kind does something real and records what it
+       * left behind, so the pipeline is a list of things you can open.
        */
       advanceInitiative: (id) => {
         const s = get()
         const it = s.initiatives.find((x) => x.id === id)
-        if (!it) return
-        const next = STAGES[Math.min(STAGES.length - 1, STAGES.indexOf(it.stage) + 1)]
-        if (next === it.stage) return
+        const wf = it && workflowById(allWorkflows(s.workflows), it.workflowId)
+        if (!it || !wf) return
+        const nextIndex = it.stageIndex + 1
+        const stage = wf.stages[nextIndex]
+        if (!stage) return
         const at = nowIso()
         const h = useHorizon.getState()
         const patch: Partial<Initiative> = {}
+        const money = (n: number) => `$${Math.round(n).toLocaleString('en-US')}`
         let text = ''
-        if (next === 'research') {
-          const runId = get().createRun('ag-planner', `Research: ${it.title}`, `Gather what is already known about "${it.title}" and say whether there is a way in.`, { kind: 'report', title: `Research: ${it.title}`, body: `What is known about ${it.title}, who is already doing it, and where the money is. (Report produced by the local provider; the runtime would do the reading.)` })
+        const kind: StageKind = stage.kind
+
+        if (kind === 'research') {
+          const runId = get().createRun('ag-planner', `Research: ${it.title}`, `Gather what is already known about "${it.title}" and say whether there is a way in.`, { kind: 'report', title: `Research: ${it.title}`, body: `What is known about ${it.title}, who is already doing it, and where the money is. (Produced by the local provider; the runtime would do the reading.)` })
           patch.runIds = [...it.runIds, runId]
-          text = 'Planner is researching. The report arrives on the Desk when the run completes.'
-        } else if (next === 'thesis') {
+          text = 'Planner is researching. The report lands on the Desk when the run completes.'
+        } else if (kind === 'spec') {
+          const pieceId = get().addPiece({ title: `Sharpen the one-page spec for ${it.title}`, detail: 'What it is, who it is for, what done looks like. One page.', weight: 2, dependsOn: [], agentId: 'ag-scribe', goalId: it.goalId })
+          const runId = get().createRun('ag-scribe', `Draft the spec for ${it.title}`, 'A first one-page spec from the spark and anything in the stream about it.', { kind: 'report', title: `Spec: ${it.title}`, body: `${it.spark} What it is: the smallest version of that. Who it is for: the first ten people who would use it before it is good. Done: they use it twice without being asked.` })
+          patch.pieceIds = [...it.pieceIds, pieceId]
+          patch.runIds = [...it.runIds, runId]
+          text = 'Scribe is drafting the spec. A piece to sharpen it is on the journey.'
+        } else if (kind === 'customers') {
+          const ids = [
+            get().addPiece({ title: `Name the first ten people for ${it.title}`, detail: 'Names, not personas. People who would use it before it is good.', weight: 3, dependsOn: [], agentId: 'ag-planner', goalId: it.goalId }),
+            get().addPiece({ title: `Talk to three of them about ${it.title}`, detail: 'Listen. Do not explain.', weight: 3, dependsOn: [], goalId: it.goalId }),
+          ]
+          patch.pieceIds = [...it.pieceIds, ...ids]
+          text = 'Two pieces on the journey: the ten names, and three conversations.'
+        } else if (kind === 'thesis') {
           const { pillarId, thesisId } = h.addBelief({
             belief: it.title,
-            claim: `${it.spark} If that holds, the spend follows the participation, and the businesses that serve it are worth more than the market thinks.`,
+            claim: `${it.spark} If that holds, the spend follows the behaviour, and the businesses that serve it are worth more than the market thinks.`,
             horizonYears: 7,
-            falsifiers: ['Participation growth stalls for two consecutive years.', 'The listed exposure never captures the spend — it stays private or local.'],
+            falsifiers: ['The behaviour stops growing for two consecutive years.', 'No listed business captures the spend — it stays private or local.'],
           })
           patch.pillarId = pillarId
           patch.thesisId = thesisId
           text = 'Written on the belief map as a pillar with a first thesis under it.'
-        } else if (next === 'plan') {
+        } else if (kind === 'ground') {
           const ids = [
-            get().addPiece({ title: `Find five companies for ${it.title}`, detail: 'Run discovery from the seed companies the research named.', weight: 3, dependsOn: [], agentId: 'ag-planner' }),
-            get().addPiece({ title: `Attach three filings to the ${it.title} thesis`, detail: 'One that argues against it.', weight: 3, dependsOn: [] }),
-            get().addPiece({ title: `Decide the sleeve size for ${it.title}`, detail: 'A target percentage and an exit rule.', weight: 2, dependsOn: [] }),
+            get().addPiece({ title: `Find five companies for ${it.title}`, detail: 'Run discovery from the seed companies the research named; accept the ones that fit under the thesis.', weight: 3, dependsOn: [], agentId: 'ag-planner' }),
+            get().addPiece({ title: `Attach three filings to the ${it.title} thesis`, detail: 'At least one that argues against it.', weight: 3, dependsOn: [] }),
           ]
           patch.pieceIds = [...it.pieceIds, ...ids]
-          text = 'Three pieces on the journey.'
-        } else if (next === 'cost') {
-          const goalId = h.addGoal({ title: `Deploy: ${it.title}`, why: it.spark, kind: 'build', horizon: 'later', targetUsd: 25_000, monthlyUsd: 0, earmarkedUsd: 0 })
-          const goal = h.goals.find((g) => g.id === goalId) ?? useHorizon.getState().goals.find((g) => g.id === goalId)
+          text = 'Two pieces on the journey: companies, then filings. Discovery is under Beliefs.'
+        } else if (kind === 'plan') {
+          const ids = [
+            get().addPiece({ title: `Build the smallest working ${it.title}`, detail: 'Whatever can be shown in a fortnight.', weight: 8, dependsOn: [], goalId: it.goalId }),
+            get().addPiece({ title: `Put ${it.title} in front of the ten`, detail: 'Watch. Do not explain.', weight: 5, dependsOn: [], goalId: it.goalId }),
+          ]
+          patch.pieceIds = [...it.pieceIds, ...ids]
+          text = 'The build and the first showing are on the journey.'
+        } else if (kind === 'cost') {
+          const goalId = it.goalId ?? h.addGoal({ title: it.title, why: it.spark, kind: 'build', horizon: 'later', targetUsd: 25_000, monthlyUsd: 0, earmarkedUsd: 0 })
+          const goal = useHorizon.getState().goals.find((g) => g.id === goalId)
           const lines = goal ? roadmapFor(goal) : []
-          const runId = get().createRun('ag-planner', `Cost the ${it.title} plan`, 'Roadmap with lines and a total; the total becomes the goal target.', goal ? { kind: 'roadmap', goalId, lines } : undefined)
+          const runId = get().createRun('ag-planner', `Cost ${it.title}`, 'Roadmap with lines and a total; the total becomes the goal target when approved.', goal ? { kind: 'roadmap', goalId, lines } : undefined)
           patch.goalId = goalId
           patch.runIds = [...it.runIds, runId]
-          text = `A goal on the board and a costed roadmap waiting for review (${money(roadmapTotal(lines))}).`
-        } else if (next === 'launch') {
+          text = `A goal on the board and a costed roadmap (${money(roadmapTotal(lines))}) waiting for review.`
+        } else if (kind === 'sleeve') {
+          const rootId = it.pillarId ?? it.thesisId
+          if (!rootId) text = 'No belief to point a sleeve at yet — add a thesis stage before this one.'
+          else {
+            const sleeveId = h.addSleeve({ name: it.title, rootId, targetPct: 4, exitBelow: 45, note: `Opened from the "${wf.name}" workflow. Small until the thesis is grounded.` })
+            patch.sleeveId = sleeveId
+            text = 'A sleeve under Money, pointed at the belief: 4% target, exit rule at 45, no positions yet.'
+          }
+        } else if (kind === 'trade') {
+          const sleeveId = it.sleeveId
+          const rootId = it.pillarId ?? it.thesisId
+          if (!sleeveId || !rootId) text = 'No sleeve to trade into — add a sleeve stage before this one.'
+          else {
+            const { index } = computeConfidenceFor(h.nodes, h.edges, h.evidence)
+            const companies = descendantsOf(index, rootId).filter((nid) => index.nodeById.get(nid)?.kind === 'company')
+            if (companies.length === 0) {
+              const pieceId = get().addPiece({ title: `Accept companies for ${it.title} before trading`, detail: 'The sleeve has nothing to hold. Run discovery under Beliefs and accept what fits.', weight: 2, dependsOn: [], agentId: 'ag-planner' })
+              const runId = get().createRun('ag-trader', `Prepare first orders for ${it.title}`, 'Nothing under the belief yet. Trader will prepare orders once companies are accepted under it.', { kind: 'note', text: `Trader: no companies under ${it.title} yet. Orders wait on discovery.` })
+              patch.pieceIds = [...it.pieceIds, pieceId]
+              patch.runIds = [...it.runIds, runId]
+              text = 'No companies under the belief yet. A piece and a Trader run are waiting on discovery.'
+            } else {
+              const total = h.cashUsd + h.sleeves.reduce((a, sl) => a + sl.positions.reduce((x, p) => x + p.valueUsd, 0), 0)
+              const sleeve = h.sleeves.find((sl) => sl.id === sleeveId)!
+              const budget = Math.round(((sleeve.targetPct / 100) * total) / 100) * 100
+              const per = Math.round(budget / Math.min(3, companies.length) / 100) * 100
+              const runIds = companies.slice(0, 3).map((cid) =>
+                get().createRun('ag-trader', `Buy ${money(per)} of ${index.nodeById.get(cid)?.label} for ${it.title}`, `First position into the ${it.title} sleeve. Prepared, not sent.`, { kind: 'trade', sleeveId, companyId: cid, deltaUsd: per }),
+              )
+              patch.runIds = [...it.runIds, ...runIds]
+              text = `${runIds.length} orders prepared into the sleeve (${money(budget)} total), waiting for review.`
+            }
+          }
+        } else if (kind === 'launch') {
+          const goalId = patch.goalId ?? it.goalId
           const runIds = [
-            get().createRun('ag-ledger', `Find cash for ${it.title}`, 'Look for over-allocation and idle cash that could fund the first sleeve.', patch.goalId || it.goalId ? { kind: 'earmark', goalId: (patch.goalId ?? it.goalId)!, usd: 5_000, reason: `Seed funding for ${it.title}.` } : undefined),
+            get().createRun('ag-ledger', `Find cash for ${it.title}`, 'Look for over-allocation and idle cash that could fund it.', goalId ? { kind: 'earmark', goalId, usd: 5_000, reason: `Seed funding for ${it.title}.` } : undefined),
             get().createRun('ag-desk', `Watch the inbox for ${it.title}`, 'Surface anything that arrives about it.'),
           ]
+          patch.runIds = [...it.runIds, ...runIds]
+          text = 'Two runs launched, waiting for review.'
+        } else if (kind === 'calendar') {
           const day = todayKey()
           const blocks: TimeBlock[] = [
             { id: uid('blk'), day, start: '10:00', minutes: 90, title: `${it.title}: first piece`, kind: 'deep', initiativeId: it.id },
             { id: uid('blk'), day: todayKey(new Date(Date.now() + 86_400_000)), start: '09:00', minutes: 60, title: `${it.title}: review the runs`, kind: 'admin', initiativeId: it.id },
           ]
           set((st) => ({ blocks: [...st.blocks, ...blocks] }))
-          patch.runIds = [...it.runIds, ...runIds]
           patch.blockIds = [...it.blockIds, ...blocks.map((b) => b.id)]
-          text = 'Two runs launched, waiting for review. Time on the calendar today and tomorrow.'
-        } else if (next === 'monitor') {
-          text = 'Runs report to the Desk. Confidence on the map and cost on the goal stay live from here.'
+          text = 'Time on the calendar today and tomorrow.'
+        } else if (kind === 'monitor') {
+          const runId = get().createRun('ag-desk', `Watch ${it.title}`, it.sleeveId ? 'The sleeve\u2019s exit rule and the thesis\u2019s evidence are watched; anything that moves comes to the Desk.' : 'Anything that arrives about it comes to the Desk.')
+          patch.runIds = [...it.runIds, runId]
+          text = it.sleeveId ? 'A standing watch. The sleeve flags itself if confidence drops below its exit rule.' : 'A standing watch on the Desk.'
+        } else if (kind === 'decide') {
+          const pieceId = get().addPiece({ title: `Decide on ${it.title}: continue, change, or stop`, detail: 'Written down, with the reason.', weight: 2, dependsOn: [], goalId: it.goalId })
+          patch.pieceIds = [...it.pieceIds, pieceId]
+          text = 'The decision is a piece on the journey. Write the reason when you make it.'
+        } else {
+          text = 'Captured.'
         }
+
         set({
-          initiatives: get().initiatives.map((x) => (x.id === id ? { ...x, ...patch, stage: next, updatedAt: at, history: [...x.history, { at, stage: next, text }] } : x)),
+          initiatives: get().initiatives.map((x) => (x.id === id ? { ...x, ...patch, stageIndex: nextIndex, updatedAt: at, history: [...x.history, { at, stage: stage.id, text }] } : x)),
         })
-        h.addNote(`${it.title} → ${STAGE_LABEL[next]}`, text)
+        h.addNote(`${it.title} → ${stage.label ?? stageMeta(kind).label}`, text)
       },
+
+      saveWorkflow: (wf) => {
+        const id = wf.id ?? uid('wf')
+        set((s) => ({ workflows: [...s.workflows.filter((w) => w.id !== id), { ...wf, id }] }))
+        useHorizon.getState().addNote(`Workflow: ${wf.name}`, `${wf.stages.length} stages: ${wf.stages.map((st) => st.label ?? stageMeta(st.kind).label).join(' → ')}.`)
+        return id
+      },
+      deleteWorkflow: (id) => set((s) => ({ workflows: s.workflows.filter((w) => w.id !== id) })),
 
       ensureDay: () => {
         const s = get()

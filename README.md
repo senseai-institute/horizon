@@ -48,11 +48,15 @@ proposes still waits for you. See `runtime/README.md`.
 belief, a download — it is there. Type a sentence and Horizon takes it as a
 chat, or keeps it in the stream. One place to look.
 
-**Initiatives.** An idea, all the way to an outcome: spark → research →
-thesis → plan → cost → launch → monitor. Each stage does something real and
-leaves something you can open — a research run, a pillar on the belief map,
-pieces on the journey, a costed goal with a roadmap, launched runs and time on
-the calendar. The alternative-sports initiative ships mid-flight.
+**Initiatives and workflows.** An idea runs on an explicit workflow to an
+outcome. Two ship built in — **Idea → Product** (spark, shape, first ten,
+cost, build, launch, time, monitor, decide) and **Idea → Thesis → Trade →
+Monitor** (spark, research, thesis, ground, size a sleeve, trade, monitor) —
+plus a short **Question → Answer**. Every stage kind has one executor that
+does the real thing and leaves something openable: a research run, a pillar
+on the belief map, pieces on the journey, a costed goal, a sleeve under Money,
+prepared orders waiting for review, time on the day. A designer assembles new
+workflows from the same stage kinds. Two initiatives ship mid-flight.
 
 **Desk.** The main surface, made of widgets you switch on and reorder. Everything that arrives — email, agent messages,
 reports, approvals — in one list with an *inbox score*: sender importance ×
@@ -140,6 +144,7 @@ src/os/
   day.ts        the day plan and the nudge engine
   senses.ts     tones and haptics
   widgets.tsx   the widget registry — one entry per widget
+  workflows.ts  stage kinds and the built-in workflows
 src/store/useOS.ts    chats, runs (with a scheduler), inbox, journey, stream, flow,
                       initiatives, day, nudges, widgets, senses
 runtime/server.mjs    Anthropic SDK; tools mirror the effects the UI applies; /feed
