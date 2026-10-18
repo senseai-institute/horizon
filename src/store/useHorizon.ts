@@ -851,6 +851,20 @@ export const useHorizon = create<HorizonState>()(
     {
       name: STORAGE_KEY,
       version: 1,
+      /* Saved state from an older build: keep every key whose shape still fits, default the rest. */
+      merge: (persisted, current) => {
+        const p = (persisted && typeof persisted === 'object' ? persisted : {}) as Record<string, unknown>
+        const out: Record<string, unknown> = { ...current }
+        for (const [k, v] of Object.entries(p)) {
+          const base = (current as unknown as Record<string, unknown>)[k]
+          if (v === undefined || v === null) continue
+          if (Array.isArray(base) && !Array.isArray(v)) continue
+          if (base !== null && typeof base === 'object' && !Array.isArray(base) && (typeof v !== 'object' || Array.isArray(v))) continue
+          if (typeof base === 'boolean' && typeof v !== 'boolean') continue
+          out[k] = v
+        }
+        return out as unknown as HorizonState
+      },
     },
   ),
 )

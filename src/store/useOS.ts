@@ -522,6 +522,50 @@ function applyEffect(effect: RunEffect, agentName: string): string {
   }
 }
 
+/**
+ * Saved state from an earlier build is never thrown away and never allowed
+ * to crash the app. Missing keys get their defaults; shapes that changed
+ * (initiatives before workflows existed) are carried forward.
+ */
+const OLD_STAGE_TO_WORKFLOW: Record<string, { workflowId: string; index: number }> = {
+  spark: { workflowId: 'wf-thesis', index: 0 },
+  research: { workflowId: 'wf-thesis', index: 1 },
+  thesis: { workflowId: 'wf-thesis', index: 2 },
+  plan: { workflowId: 'wf-product', index: 4 },
+  cost: { workflowId: 'wf-product', index: 3 },
+  launch: { workflowId: 'wf-product', index: 5 },
+  monitor: { workflowId: 'wf-thesis', index: 6 },
+}
+
+export function normaliseOS(persisted: unknown, seed: ReturnType<typeof seedState>): Partial<OSState> {
+  const p = (persisted && typeof persisted === 'object' ? persisted : {}) as Record<string, unknown>
+  const out: Record<string, unknown> = { ...seed }
+  for (const [k, v] of Object.entries(p)) {
+    const base = (seed as Record<string, unknown>)[k]
+    if (v === undefined || v === null) continue
+    if (Array.isArray(base) && !Array.isArray(v)) continue
+    if (base !== null && typeof base === 'object' && !Array.isArray(base) && (typeof v !== 'object' || Array.isArray(v))) continue
+    out[k] = v
+  }
+  // Initiatives: before workflows existed they carried a `stage` string.
+  const seedInits = seed.initiatives
+  const inits = (out.initiatives as Array<Record<string, unknown>>).map((it) => {
+    if (typeof it.workflowId === 'string' && typeof it.stageIndex === 'number') return it
+    const old = OLD_STAGE_TO_WORKFLOW[String(it.stage ?? 'spark')] ?? OLD_STAGE_TO_WORKFLOW.spark
+    const workflowId = it.thesisId || it.pillarId ? 'wf-thesis' : old.workflowId
+    return { ...it, workflowId, stageIndex: old.index, history: Array.isArray(it.history) ? it.history : [], pieceIds: it.pieceIds ?? [], runIds: it.runIds ?? [], blockIds: it.blockIds ?? [] }
+  })
+  for (const si of seedInits) if (!inits.some((i) => i.id === si.id)) inits.push(si as unknown as Record<string, unknown>)
+  out.initiatives = inits
+  out.attention = { ...seed.attention, ...((out.attention as object) ?? {}) }
+  out.senses = { ...seed.senses, ...((out.senses as object) ?? {}) }
+  const known = new Set(seed.widgets)
+  out.widgets = (out.widgets as WidgetId[]).filter((w) => known.has(w))
+  if ((out.widgets as WidgetId[]).length === 0) out.widgets = seed.widgets
+  for (const w of ['todos', 'trackers'] as WidgetId[]) if (!(out.widgets as WidgetId[]).includes(w) && !('todos' in p)) (out.widgets as WidgetId[]).splice(2, 0, w)
+  return out as Partial<OSState>
+}
+
 export const useOS = create<OSState>()(
   persist(
     (set, get) => ({
@@ -1216,7 +1260,9 @@ export const useOS = create<OSState>()(
     }),
     {
       name: OS_STORAGE_KEY,
-      version: 1,
+      version: 2,
+      migrate: (persisted) => normaliseOS(persisted, seedState()) as OSState,
+      merge: (persisted, current) => ({ ...current, ...normaliseOS(persisted, seedState()) }),
       partialize: (s) => ({ ...s, bio: [], pending: {}, lastError: null, paletteOpen: false }) as OSState,
     },
   ),
