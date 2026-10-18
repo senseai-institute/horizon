@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useToast } from '../../components/Toast'
 import { Field } from '../../components/ui'
+import { FINANCE_STORAGE_KEY } from '../../store/useFinance'
 import { OS_STORAGE_KEY, useOS } from '../../store/useOS'
 import { STORAGE_KEY, useHorizon } from '../../store/useHorizon'
 
@@ -37,6 +38,7 @@ export default function SystemScreen() {
       exportedAt: new Date().toISOString(),
       notebook: JSON.parse(localStorage.getItem(STORAGE_KEY) ?? 'null'),
       os: JSON.parse(localStorage.getItem(OS_STORAGE_KEY) ?? 'null'),
+      finance: JSON.parse(localStorage.getItem(FINANCE_STORAGE_KEY) ?? 'null'),
     }
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })
     const a = document.createElement('a')
@@ -53,6 +55,7 @@ export default function SystemScreen() {
         const data = JSON.parse(txt)
         if (data.notebook) localStorage.setItem(STORAGE_KEY, JSON.stringify(data.notebook))
         if (data.os) localStorage.setItem(OS_STORAGE_KEY, JSON.stringify(data.os))
+        if (data.finance) localStorage.setItem(FINANCE_STORAGE_KEY, JSON.stringify(data.finance))
         window.location.reload()
       } catch {
         toast({ text: 'That file did not look like a Horizon export.' })

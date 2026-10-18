@@ -191,7 +191,7 @@ function ChainRow({ link }: { link: ChainLink }) {
           {body}
         </Link>
       ) : link.sleeveId ? (
-        <Link to="/money" style={{ color: 'inherit', textDecoration: 'none' }}>
+        <Link to="/money/sleeves" style={{ color: 'inherit', textDecoration: 'none' }}>
           {body}
         </Link>
       ) : (

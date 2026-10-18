@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { HashRouter, Navigate, Outlet, Route, Routes, useParams } from 'react-router-dom'
 import ErrorBoundary from './components/ErrorBoundary'
 import OSShell from './components/OSShell'
@@ -30,7 +31,17 @@ import InitiativesScreen from './screens/os/InitiativesScreen'
 import JourneyScreen from './screens/os/JourneyScreen'
 import StreamScreen from './screens/os/StreamScreen'
 import SystemScreen from './screens/os/SystemScreen'
+import CashScreen from './screens/money/CashScreen'
+import CoreScreen from './screens/money/CoreScreen'
+import MoneyHomeScreen from './screens/money/MoneyHomeScreen'
+import MoneySettingsScreen from './screens/money/MoneySettingsScreen'
+import PurchasesScreen from './screens/money/PurchasesScreen'
+import ScorecardScreen from './screens/money/ScorecardScreen'
+import SubscriptionsScreen from './screens/money/SubscriptionsScreen'
+import { ThesesScreen, ThesisDetailScreen as MoneyThesisScreen } from './screens/money/ThesesScreen'
+import { ProposalSheet, SimBanner } from './screens/money/shared'
 import { usePendingCount } from './store/derived'
+import { useFinance } from './store/useFinance'
 import { useHorizon } from './store/useHorizon'
 import { useOS } from './store/useOS'
 import { todayKey } from './os/day'
@@ -51,18 +62,40 @@ function BeliefsSection() {
   )
 }
 
+/**
+ * Money, every horizon: this month's subscriptions, this year's purchases,
+ * the years-long core and theses — and, further down the tabs, the belief
+ * sleeves, the review queue and the journal from before.
+ */
 function MoneySection() {
   const pending = usePendingCount()
+  const loadStatus = useFinance((s) => s.loadStatus)
+  const catchUp = useFinance((s) => s.catchUp)
+  useEffect(() => {
+    void loadStatus()
+    /* The simulated market moves one day for every market day you were away. */
+    catchUp()
+  }, [loadStatus, catchUp])
   return (
     <div className="fill">
       <SubNav
         items={[
-          { to: '/money', label: 'Allocation', end: true },
+          { to: '/money', label: 'Home', end: true },
+          { to: '/money/theses', label: 'Theses' },
+          { to: '/money/scorecard', label: 'Scorecard' },
+          { to: '/money/core', label: 'Core' },
+          { to: '/money/cash', label: 'Cash' },
+          { to: '/money/subscriptions', label: 'Subscriptions' },
+          { to: '/money/purchases', label: 'Purchases' },
+          { to: '/money/sleeves', label: 'Belief sleeves' },
           { to: '/money/review', label: 'Review queue', badge: pending },
           { to: '/money/journal', label: 'Journal' },
+          { to: '/money/settings', label: 'Settings' },
         ]}
       />
+      <SimBanner />
       <Outlet />
+      <ProposalSheet />
     </div>
   )
 }
@@ -116,7 +149,16 @@ export default function App() {
             </Route>
 
             <Route path="/money" element={<MoneySection />}>
-              <Route index element={<SleevesScreen />} />
+              <Route index element={<MoneyHomeScreen />} />
+              <Route path="theses" element={<ThesesScreen />} />
+              <Route path="theses/:id" element={<MoneyThesisScreen />} />
+              <Route path="scorecard" element={<ScorecardScreen />} />
+              <Route path="core" element={<CoreScreen />} />
+              <Route path="cash" element={<CashScreen />} />
+              <Route path="subscriptions" element={<SubscriptionsScreen />} />
+              <Route path="purchases" element={<PurchasesScreen />} />
+              <Route path="settings" element={<MoneySettingsScreen />} />
+              <Route path="sleeves" element={<SleevesScreen />} />
               <Route path="review" element={<ReviewQueueScreen />} />
               <Route path="journal" element={<JournalScreen />} />
             </Route>
@@ -126,7 +168,7 @@ export default function App() {
             <Route path="/evidence" element={<Moved to="/beliefs/evidence" />} />
             <Route path="/evidence/:id" element={<Moved to="/beliefs/evidence/:id" />} />
             <Route path="/discovery" element={<Moved to="/beliefs/discovery" />} />
-            <Route path="/sleeves" element={<Moved to="/money" />} />
+            <Route path="/sleeves" element={<Moved to="/money/sleeves" />} />
             <Route path="/review" element={<Moved to="/money/review" />} />
             <Route path="/journal" element={<Moved to="/money/journal" />} />
             <Route path="*" element={<Navigate to="/desk" replace />} />

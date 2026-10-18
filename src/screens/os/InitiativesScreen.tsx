@@ -222,7 +222,7 @@ export default function InitiativesScreen() {
                   {itDocs.map((d) => <div key={d.id} className="row row-between" style={{ fontSize: 14 }}><span>Doc: <Link to={`/docs?initiative=${it.id}&id=${d.id}`}>{d.title}</Link></span><span className="meta">{d.kind}</span></div>)}
                   {pillar && <div className="row row-between" style={{ fontSize: 14 }}><span>Belief: <Link to={`/beliefs/${pillar.id}`}>{pillar.label}</Link></span><span className="num meta">confidence {(confidence[pillar.id] ?? 50).toFixed(0)}</span></div>}
                   {goal && <div className="row row-between" style={{ fontSize: 14 }}><span>Goal: <Link to={`/goals/${goal.id}`}>{goal.title}</Link></span><span className="num meta">{formatUsd(goal.targetUsd)}</span></div>}
-                  {sleeve && <div className="row row-between" style={{ fontSize: 14 }}><span>Sleeve: <Link to="/money">{sleeve.name}</Link></span><span className="num meta">{sleeve.targetPct}% · exit below {sleeve.exitBelow}</span></div>}
+                  {sleeve && <div className="row row-between" style={{ fontSize: 14 }}><span>Sleeve: <Link to="/money/sleeves">{sleeve.name}</Link></span><span className="num meta">{sleeve.targetPct}% · exit below {sleeve.exitBelow}</span></div>}
                   {itPieces.map((p) => <div key={p.id} className="row row-between" style={{ fontSize: 14 }}><span>Piece: <Link to="/journey">{p.title}</Link></span><span className="meta">{p.status}</span></div>)}
                   {itRuns.map((r) => {
                     const ag = agents.find((a) => a.id === r.agentId)

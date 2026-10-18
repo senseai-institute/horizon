@@ -139,13 +139,13 @@ export default function GoalDetailScreen() {
           {linked.length === 0 ? (
             <p className="meta" style={{ margin: 0 }}>
               No sleeves are pointed at this goal. Long-horizon goals are usually funded by the{' '}
-              <Link to="/money">belief-driven sleeves</Link>; short ones by cash.
+              <Link to="/money/sleeves">belief-driven sleeves</Link>; short ones by cash.
             </p>
           ) : (
             <ul className="stack stack-xs" style={{ margin: 0, padding: 0, listStyle: 'none' }}>
               {linked.map((s) => (
                 <li key={s.sleeve.id} className="row row-between" style={{ fontSize: 14 }}>
-                  <Link to="/money" style={{ color: 'var(--ink)', textDecoration: 'none' }}>
+                  <Link to="/money/sleeves" style={{ color: 'var(--ink)', textDecoration: 'none' }}>
                     {s.sleeve.name}
                   </Link>
                   <span className="num meta">{formatUsd(s.valueUsd)}</span>

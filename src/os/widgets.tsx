@@ -5,6 +5,8 @@ import HabitCard from '../components/HabitCard'
 import { ConfidenceBar, formatUsd } from '../components/ui'
 import { confidenceColor } from '../lib/color'
 import { useGoalViews, useGraph, useHabitViews, usePortfolio } from '../store/derived'
+import { openBets, totalValue } from '../finance/valuation'
+import { useFinance } from '../store/useFinance'
 import { useHorizon } from '../store/useHorizon'
 import { allWorkflows, useOS } from '../store/useOS'
 import { stageMeta, workflowById } from './workflows'
@@ -271,6 +273,21 @@ function JourneyWidget() {
   )
 }
 
+/** The simulated account in one line: total, today, open theses. */
+function ThesisLine() {
+  const ledger = useFinance((s) => s.ledger)
+  const total = totalValue(ledger)
+  const prev = ledger.snapshots.at(-2)?.totalValue ?? total
+  const change = total - prev
+  return (
+    <div className="row row-wrap" style={{ gap: 12, fontSize: 13.5 }}>
+      <span className="num" style={{ fontSize: 18 }}>{formatUsd(total)}</span>
+      <span className="num" style={{ color: change >= 0 ? 'var(--support)' : 'var(--contradict)' }}>{change >= 0 ? '+' : '−'}${Math.abs(change).toFixed(2)} today</span>
+      <Link to="/money/theses" className="meta">{openBets(ledger).length} theses open</Link>
+    </div>
+  )
+}
+
 function MoneyWidget() {
   const portfolio = usePortfolio()
   const goals = useGoalViews()
@@ -279,7 +296,8 @@ function MoneyWidget() {
   const nearest = goals.projections.filter((g) => g.goal.status === 'active' && g.remainingUsd > 0).sort((a, b) => (a.monthsToDate ?? 999) - (b.monthsToDate ?? 999))[0]
   return (
     <div className="stack stack-sm">
-      <div className="row row-between"><span className="label">Money</span><Link to="/money" className="link-button" style={{ fontSize: 12.5 }}>Allocation</Link></div>
+      <div className="row row-between"><span className="label">Money</span><Link to="/money" className="link-button" style={{ fontSize: 12.5 }}>Open</Link></div>
+      <ThesisLine />
       <div className="row row-wrap" style={{ gap: 18 }}>
         <span className="meta"><span className="num" style={{ color: 'var(--ink)' }}>{formatUsd(portfolio.totalUsd, { compact: true })}</span> book</span>
         <span className="meta"><span className="num" style={{ color: 'var(--ink)' }}>{formatUsd(goals.freeCashUsd, { compact: true })}</span> unpointed</span>
@@ -348,5 +366,5 @@ export const WIDGETS: WidgetDef[] = [
   { id: 'flow', label: 'Body', blurb: 'Flow state and heart rate.', span: 1, Component: FlowWidget },
   { id: 'habits', label: 'Habits', blurb: 'This month’s spending you are changing.', span: 1, Component: HabitsWidget },
   { id: 'journey', label: 'Journey', blurb: 'Distance travelled.', span: 1, Component: JourneyWidget },
-  { id: 'money', label: 'Money', blurb: 'Book, nearest goal, pillars.', span: 1, Component: MoneyWidget },
+  { id: 'money', label: 'Money', blurb: 'Total and theses, book, nearest goal, pillars.', span: 1, Component: MoneyWidget },
 ]

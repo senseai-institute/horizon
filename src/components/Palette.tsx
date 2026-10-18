@@ -1,5 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { sentenceToday } from '../finance/calendar'
+import { parseCommand } from '../finance/parser'
+import { useFinance } from '../store/useFinance'
 import { useHorizon } from '../store/useHorizon'
 import { useOS } from '../store/useOS'
 import Glyph from './Glyph'
@@ -29,7 +32,12 @@ const APPS: { label: string; to: string; hint: string }[] = [
   { label: 'Goals', to: '/goals', hint: 'what the money is for' },
   { label: 'Beliefs', to: '/beliefs', hint: 'the thesis map' },
   { label: 'Values', to: '/values', hint: 'what you will not own' },
-  { label: 'Money', to: '/money', hint: 'sleeves, queue, journal' },
+  { label: 'Money', to: '/money', hint: 'total, theses, subscriptions, purchases' },
+  { label: 'Theses', to: '/money/theses', hint: 'one-sentence bets' },
+  { label: 'Scorecard', to: '/money/scorecard', hint: 'core against theses, lessons' },
+  { label: 'Subscriptions', to: '/money/subscriptions', hint: 'what charges you every month' },
+  { label: 'Purchases', to: '/money/purchases', hint: 'things you are saving for' },
+  { label: 'Belief sleeves', to: '/money/sleeves', hint: 'allocation against the map' },
   { label: 'System', to: '/system', hint: 'runtime, export, senses' },
 ]
 
@@ -102,6 +110,12 @@ export default function Palette() {
       const text = q.trim().replace(todoPrefix, '')
       return [{ id: 'todo', group: 'Actions', label: `Add to-do: "${text}"`, hint: 'return to add', run: () => { setPalette(false); if (text.trim()) os.addTodo(text.trim()) } }]
     }
+    /* A money sentence — a bet, a cancellation, a plan — goes straight to a proposal card. */
+    const ledger = useFinance.getState().ledger
+    const money = parseCommand(q, { themes: ledger.settings.themes, today: sentenceToday(ledger.asOf) })
+    const moneyHit: Hit[] = money.ok || money.reason === 'unknown-theme'
+      ? [{ id: 'money', group: 'Actions', label: `Money: "${q.trim()}"`, hint: 'opens a proposal card', run: () => go(`/money?cmd=${encodeURIComponent(q.trim())}`) }]
+      : []
     const scored = all
       .map((h) => {
         const l = h.label.toLowerCase()
@@ -112,8 +126,9 @@ export default function Palette() {
       .sort((a, b) => b.score - a.score)
       .slice(0, 12)
       .map((x) => x.h)
+    scored.unshift(...moneyHit)
     const sentence = t.split(' ').length >= 3
-    if (sentence || scored.length === 0)
+    if (!moneyHit.length && (sentence || scored.length === 0))
       scored.push(
         { id: 'ask', group: 'Actions', label: `Ask Horizon: "${q.trim()}"`, hint: 'opens a chat and sends it', run: () => { setPalette(false); const id = os.openChat('ag-horizon'); void os.send(id, q.trim()) } },
         { id: 'todo', group: 'Actions', label: `Add to-do: "${q.trim().slice(0, 40)}${q.trim().length > 40 ? '…' : ''}"`, run: () => { setPalette(false); os.addTodo(q.trim()) } },

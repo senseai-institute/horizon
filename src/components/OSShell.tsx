@@ -3,6 +3,7 @@ import { NavLink, Outlet } from 'react-router-dom'
 import { FLOW_LABEL } from '../os/bio'
 import { inboxScore } from '../os/inbox'
 import { usePendingCount } from '../store/derived'
+import { useFinance } from '../store/useFinance'
 import { useHorizon } from '../store/useHorizon'
 import { bioSimulator, useOS } from '../store/useOS'
 import { BuddyDock, ChatLayer } from './ChatWindows'
@@ -147,6 +148,7 @@ export default function OSShell() {
             onConfirm={() => {
               resetOS()
               resetNotebook()
+              useFinance.getState().resetFinance()
               window.location.hash = '#/onboarding'
             }}
           >

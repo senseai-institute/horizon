@@ -1,4 +1,5 @@
 import { Component, type ReactNode } from 'react'
+import { FINANCE_STORAGE_KEY } from '../store/useFinance'
 import { OS_STORAGE_KEY } from '../store/useOS'
 import { STORAGE_KEY } from '../store/useHorizon'
 
@@ -20,6 +21,7 @@ export default class ErrorBoundary extends Component<{ children: ReactNode }, St
       try {
         localStorage.removeItem(OS_STORAGE_KEY)
         localStorage.removeItem(STORAGE_KEY)
+        localStorage.removeItem(FINANCE_STORAGE_KEY)
       } catch { /* storage may be unavailable */ }
       location.hash = '#/onboarding'
       location.reload()

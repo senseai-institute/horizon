@@ -21,14 +21,53 @@ npm run dev        # http://localhost:5173
 ```bash
 npm run build      # typecheck + production bundle → dist/
 npm start          # serve dist/ on $PORT (default 3000)
+npm test           # Vitest: parser, guardrails, the daily tick
 ```
 
-Node 20 or newer. The frontend has no server dependencies.
+Node 20 or newer.
 
 ### Deploying to Railway
 
-`Dockerfile`, `railway.json`, and a zero-dependency `server.mjs` that serves
-the build on `$PORT` with `/healthz`. Connect the repo and deploy.
+`Dockerfile`, `railway.json`, and `server.mjs`, which serves the build on
+`$PORT` with `/healthz`.
+
+1. New project → Deploy from GitHub → this repo. It builds from the Dockerfile.
+2. Variables:
+   - `PASSCODE` — locks the whole app behind one passcode (a cookie keeps you
+     signed in for 30 days). Set it before you put anything real in.
+   - `ANTHROPIC_API_KEY` — optional. Lets Claude read money commands the
+     offline grammar misses ("I reckon coffee gets cheaper over the next year
+     and a half, put a hundred on it"). Claude only rewrites the line into the
+     grammar; the offline parser still validates it and never guesses a theme.
+   - `BROKER=mock`, `BANK=mock` — the defaults. `alpaca` / `plaid` select stubs
+     that refuse every call until they are wired (see below).
+3. Settings → Networking → Generate domain. Open it on your phone and add it to
+   the home screen.
+
+No database and no cron yet: in this build the money ledger lives in your
+browser (like the rest of Horizon) and the simulated market moves one day for
+every market day you were away when you open Money. Export it any time from
+System. A server-side ledger, Postgres and a daily `/api/tick` cron arrive with
+the real broker — see *Wiring real money* below.
+
+### The 60-second demo
+
+1. Open the app → **Money**. The sample account: $10,000 a year ago, $8,000
+   in the core (VTI 50 / VXUS 20 / BND 30), four open theses, two closed (one
+   win, one loss), subscriptions the bank has spotted, four things being saved
+   for. The banner says **SIMULATED**.
+2. Type `short coffee, 18mo, $100` in the box at the bottom → **Go**. The card
+   says, in plain English: coffee price goes DOWN, $100 in, deadline, closes if
+   you've lost $100, worst case ~$100, fee ~$0.50/mo.
+3. Type the six-character code within two minutes → **Confirm**. Placed.
+4. Tap **+30 days** (or type `ff 30`). Prices move, fees accrue, subscriptions
+   charge, the monthly transfer arrives, set-asides fill.
+5. **Scorecard**: core against theses over 1 month, 3 months, the year; the
+   record; best and worst; the lessons you wrote when bets closed.
+
+Then try `cancel disney+`, `save for a road bike, $1400, by april`,
+`long cocoa, 1y, $100` (it will ask which theme you meant), and ⌘K with any
+of those sentences from anywhere in Horizon.
 
 ### The runtime (optional, yours)
 
@@ -176,6 +215,27 @@ dock and the chats. A vesica-piscis breathing figure paces in-hold-out at 4 :
 2 : 4φ. Senses you can switch on: a soft tone at the edges of a session, a
 low tone that follows the breath, a short vibration on a nudge.
 
+**Money, every horizon.** One balance under everything, read on a phone. The
+home is the total, today's change, a month of it, the core and the thesis
+sleeve against their 80 / 20 targets, and one line to type into. *This month*
+is **subscriptions**: found in the bank feed, flagged when unused for 30 days or
+doubled up, cancelled with a code, and the money they free sent to a plan.
+*This year* is **purchases**: a price, a date, a monthly set-aside out of cash,
+and thirty days to cool off before anything over $200 can be bought. *Years*
+is the **core** (a few funds, drift, rebalance) and the **theses**: "short
+coffee, 18mo, $100" becomes a card, a code, a position with a deadline, an
+auto-exit and a journal, and a verdict when it closes. The **scorecard** says
+whether the sleeve is beating the core, and the **lessons** are the last thing
+you wrote on each closed bet.
+
+The guardrails are code, not advice, and they are tested: nothing places
+without a valid, unexpired (two-minute), single-use code; quantities are
+worked out from dollars, never typed; open thesis money plus a new bet must fit
+inside the sleeve's share of the whole account; down bets auto-exit at −100%
+of the money in unless you say otherwise; every bet has a deadline and the
+daily tick closes it there. A cancellation adds a to-do to your Morning; a
+placed or closed thesis writes a line in the Journal.
+
 **Life.** The goals, habits, beliefs, values and money that the earlier builds
 established, unchanged in substance: goals on four horizons with projections;
 habits that release unspent money to a goal; a belief map with confidence
@@ -228,6 +288,17 @@ src/os/
   translate.ts  idea → blueprint (milestones, sized pieces, routine, risks)
   connections.ts the connection catalogue: machine / network / internet
   lab.ts        datasets, experiments, one epoch per tick
+src/finance/           the money engine — no React, runs in the browser today, a server later
+  types.ts      ledger: account, holdings, bets, journal, orders, deposits, snapshots,
+                subscriptions, purchases, transactions, proposals
+  parser.ts     the command grammar; never guesses a theme
+  themes.ts     ~45 themes → real ETF tickers, editable in Settings
+  guardrails.ts codes, sizing, sleeve room, auto-exit defaults
+  adapters.ts   Broker / Bank interfaces; MockBroker, MockBank; Alpaca, Plaid stubs
+  engine.ts     propose → confirm (the only place money moves); the daily tick
+  prices.ts     the mock price engine (deterministic, trend-reverting walk)
+  seed.ts       a year of history, made by running the engine
+src/store/useFinance.ts the ledger in a store; adapters picked from /api/status
 src/store/useOS.ts    chats, runs (with a scheduler), inbox, journey, stream, flow,
                       initiatives, day, nudges, widgets, senses, blueprints,
                       connections, datasets, experiments, docs, sheets, routines,
@@ -250,8 +321,31 @@ research doc, a spec and a cost sheet), twenty-two connections, plus
 everything from the earlier sample notebook. All fabricated. Filing passages and values scores are
 illustrative and say so in the UI.
 
+## Wiring real money
+
+Everything above runs on mock adapters today. The order to make it real:
+
+1. **v1 — Alpaca, paper.** Move `src/finance/` behind the server (it has no
+   browser dependencies) with the ledger in Postgres. Implement
+   `AlpacaBroker` server-side with paper keys; the browser's broker becomes a
+   thin HTTP client. Codes are minted and checked on the server and every
+   guardrail runs again there before an order is sent. Add a Railway cron,
+   `0 22 * * 1-5` → `POST /api/tick` with a `CRON_SECRET` header, to pull
+   closes, fire auto-exits and deadlines, and write the snapshot. In paper
+   mode the banner says PAPER instead of SIMULATED.
+2. **v2 — Plaid.** `PlaidBank` for deposits from checking and the
+   transactions feed that finds subscriptions for real. Alpaca live. The
+   monthly scorecard email.
+3. **v3 — thesis tree.** Theses with parents and children, joined to the
+   belief map.
+
+Before going live, check every ticker in the theme table trades at the
+broker — some commodity notes (coffee's JO among them) are thinly traded or
+have been delisted.
+
 ## Not in this build
 
-Real email or bank feeds (inbox and transactions are sample data), real order
-routing, speech beyond the browser's own recognition, persistent server-side
+Real email, bank or brokerage feeds (inbox, transactions, prices and fills are
+sample data), cancelling at the merchant (you get a to-do with where to
+click), speech beyond the browser's own recognition, persistent server-side
 state. The runtime is a reference implementation, not a deployment.
